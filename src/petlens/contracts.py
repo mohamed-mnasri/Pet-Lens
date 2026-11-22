@@ -119,6 +119,10 @@ class Job(Contract):
     attempts: int = Field(ge=0)
     max_attempts: int = Field(ge=1)
     error: str | None = None
+    result: dict[str, Any]
+    progress_done: int = Field(ge=0)
+    progress_total: int | None = Field(default=None, ge=0)
+    heartbeat_at: datetime | None = None
     run_after: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
