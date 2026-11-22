@@ -7,9 +7,19 @@ The consolidated design for PetLens after the final design review. [PLAN.md](PLA
 
 ## 1. Objective
 
-PetLens is a fully local system that looks at a photo or short video of a cat or dog and says which breed it **looks most like**, or says plainly that it doesn't look like any breed. It learns from my corrections through a fast review app, and only promotes a new model when it measurably beats the old one.
+**PetLens is a local ML system with VLM data screening and human-in-the-loop evaluation.** It's built end to end on one laptop:
 
-The engineering story is the ML feedback loop: predict, review, version the data, retrain, evaluate, promote. Real teams run the same loop for document classification, defect inspection and content moderation. The pets make it easy to show.
+- a versioned image data pipeline
+- a calibrated classifier that abstains when unsure
+- a review loop that feeds retraining
+- a statistically gated model promotion
+- a local vision-language model used as a measured data-quality screener
+
+The domain is pet breed recognition. Given a photo or short clip of a cat or dog, it says which breed the animal **looks most like**, or says plainly that it doesn't look like any breed.
+
+The engineering story leads, and the pets make it easy to show. The story is the ML feedback loop: predict, review, version the data, retrain, evaluate, promote. Real teams run the same loop for document classification, defect inspection and content moderation.
+
+**How it's presented.** The README title, repo description and CV line lead with the engineering, not the cats: "PetLens: Local ML system with VLM data screening and human-in-the-loop evaluation | Python, PyTorch, PostgreSQL/pgvector, dbt, Ollama". A recruiter skimming for six seconds should read AI and data engineering, not a tutorial classifier.
 
 What I want the project to prove, next to [EuroGrid](https://github.com/mohamed-mnasri/eurogrid-intelligence):
 
