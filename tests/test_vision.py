@@ -1,0 +1,173 @@
+"""Detection pipeline, people blurring, clip grouping and frame sampling (no real models)."""
+
+from pathlib import Path
+
+import numpy as np
+import pytest
+from PIL import Image
+
+from petlens.models.heads import train_species_head
+from petlens.models.openset import KnnIndex
+from petlens.models.policy import PolicyConfig, SpeciesThresholds
+from petlens.vision.detect import Detection
+from petlens.vision.grouping import GroupingConfig, Item, group_items
+from petlens.vision.pipeline import Analyzer, analyse_clip, analyse_image
+from petlens.vision.privacy import blur_people
+from petlens.vision.video import Frame, sample_frames
+
+CLASSES = ["bengal", "domestic_cat", "ragdoll"]
+COLOURS = {"ragdoll": (220, 40, 40), "bengal": (40, 40, 220), "domestic_cat": (40, 200, 40)}
+
+
+def _embed(crops: list[Image.Image]) -> np.ndarray:
+    """Fake embedder: the crop's mean colour, which identifies our painted 'cats'."""
+    out = [np.asarray(c, dtype=np.float32).reshape(-1, 3).mean(axis=0) / 255 for c in crops]
+    return np.stack(out).astype(np.float32)
+
+
+def _analyzer(detector) -> Analyzer:  # type: ignore[no-untyped-def]
+    rng = np.random.default_rng(0)
+    x, y = [], []
+    for i, c in enumerate(CLASSES):
+        base = np.array(COLOURS[c]) / 255
+        x.append(base + rng.normal(scale=0.03, size=(40, 3)))
+        y += [i] * 40
+    xs, ys = np.concatenate(x), np.array(y)
+    head = train_species_head("cat", CLASSES, xs, ys, xs, ys, xs, ys, kinds=("logreg",))
+    cfg = PolicyConfig(
+        species={
+            "cat": SpeciesThresholds(
+                min_confidence=0.5, max_knn_distance=0.5, review_knn_distance=0.9
+            )
+        }
+    )
+    return Analyzer(
+        detector,
+        _embed,
+        {"cat": head},
+        {"cat": KnnIndex(xs)},
+        cfg,
+        grouping=GroupingConfig(min_similarity=0.9),
+    )
+
+
+def _scene(
+    cats: list[tuple[str, tuple[int, int]]], person: tuple[int, int] | None = None
+) -> tuple[Image.Image, list[Detection]]:
+    """Grey background with painted squares; returns the image and its 'true' detections."""
+    img = Image.new("RGB", (320, 240), (128, 128, 128))
+    dets: list[Detection] = []
+    for breed, (x, y) in cats:
+        img.paste(COLOURS[breed], (x, y, x + 60, y + 60))
+        dets.append(Detection("cat", 0.9, (x, y, x + 60, y + 60)))
+    if person:
+        x, y = person
+        for i in range(0, 50, 2):  # stripes, so a blur visibly changes them
+            img.paste((0, 0, 0) if i % 4 else (255, 255, 255), (x, y + i, x + 50, y + i + 2))
+        dets.append(Detection("person", 0.8, (x, y, x + 50, y + 50)))
+    return img, dets
+
+
+class FakeDetector:
+    def __init__(self) -> None:
+        self.answers: dict[int, list[Detection]] = {}
+
+    def add(self, img: Image.Image, dets: list[Detection]) -> Image.Image:
+        self.answers[id(img)] = dets
+        return img
+
+    def __call__(self, img: Image.Image) -> list[Detection]:
+        return self.answers.get(id(img), [])
+
+
+def _frames(det: FakeDetector, scenes: list) -> list[Frame]:  # type: ignore[type-arg]
+    frames = []
+    for i, (img, dets) in enumerate(scenes):
+        img = img.convert("RGB")  # already RGB, so analyse_image keeps the same object
+        det.add(img, dets)
+        frames.append(Frame(i, float(i), img))
+    return frames
+
+
+def test_photo_classifies_each_animal_and_blurs_people() -> None:
+    det = FakeDetector()
+    img, dets = _scene([("ragdoll", (20, 20)), ("bengal", (200, 100))], person=(120, 150))
+    det.add(img, dets)
+    res = analyse_image(_analyzer(det), img)
+    labels = sorted(a.decision.label or "" for a in res.animals)
+    assert labels == ["bengal", "ragdoll"]
+    assert all(a.decision.outcome == "accept" for a in res.animals)
+    assert res.people_blurred == 1
+    before = np.asarray(img.crop((120, 150, 170, 200)), dtype=float)
+    after = np.asarray(res.image.crop((120, 150, 170, 200)), dtype=float)
+    assert after.std() < before.std() / 3  # stripes smeared out
+    assert res.image.getpixel((30, 30)) == COLOURS["ragdoll"]  # animals untouched
+
+
+def test_one_cat_clip_gives_one_answer() -> None:
+    det = FakeDetector()
+    scenes = [_scene([("ragdoll", (20 + 10 * i, 30))]) for i in range(5)]
+    clip = analyse_clip(_analyzer(det), _frames(det, scenes))
+    assert not clip.ambiguous
+    assert len(clip.groups) == 1
+    assert clip.groups[0].frames == [0, 1, 2, 3, 4]
+    assert clip.groups[0].decision.label == "ragdoll"
+
+
+def test_two_cat_clip_gives_two_answers() -> None:
+    det = FakeDetector()
+    scenes = [
+        _scene([("ragdoll", (20, 30 + 5 * i)), ("bengal", (220, 120 - 5 * i))]) for i in range(4)
+    ]
+    clip = analyse_clip(_analyzer(det), _frames(det, scenes))
+    assert not clip.ambiguous
+    assert sorted(g.decision.label or "" for g in clip.groups) == ["bengal", "ragdoll"]
+    assert all(len(g.frames) == 4 for g in clip.groups)
+
+
+def test_two_identical_looking_cats_make_grouping_ambiguous() -> None:
+    det = FakeDetector()
+    scenes = [
+        _scene([("ragdoll", (20, 30)), ("ragdoll", (200, 30))]),
+        _scene([("ragdoll", (110, 30))]),
+    ]
+    clip = analyse_clip(_analyzer(det), _frames(det, scenes))
+    assert clip.ambiguous and clip.reason and "equally like two animals" in clip.reason
+    assert clip.groups == []
+    assert sum(len(f.animals) for f in clip.frames) == 3  # per-frame results still there
+
+
+def test_grouping_never_merges_within_a_frame_and_checks_size() -> None:
+    v = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+    items = [
+        Item(0, "cat", v, 100.0),
+        Item(0, "cat", v, 100.0),  # same frame: must stay separate
+        Item(1, "cat", v, 10_000.0),  # 100x bigger: not the same animal
+        Item(1, "dog", v, 100.0),  # other species
+    ]
+    res = group_items(items, GroupingConfig(ambiguity_margin=0.0))
+    assert len(res.groups) == 4
+
+
+def test_blur_ignores_animals() -> None:
+    img = Image.new("RGB", (100, 100), (10, 200, 10))
+    out = blur_people(img, [Detection("cat", 0.9, (0, 0, 50, 50))])
+    assert np.array_equal(np.asarray(out), np.asarray(img))
+
+
+def test_sample_frames_one_per_second(tmp_path: Path) -> None:
+    av = pytest.importorskip("av")
+    path = tmp_path / "clip.mp4"
+    with av.open(str(path), mode="w") as out:
+        stream = out.add_stream("mpeg4", rate=10)
+        stream.width, stream.height, stream.pix_fmt = 64, 48, "yuv420p"
+        for i in range(35):  # 3.5 seconds at 10 fps
+            frame = av.VideoFrame.from_image(Image.new("RGB", (64, 48), (i * 7, 0, 0)))
+            for packet in stream.encode(frame):
+                out.mux(packet)
+        for packet in stream.encode():
+            out.mux(packet)
+    frames = sample_frames(path)
+    assert [round(f.seconds) for f in frames] == [0, 1, 2, 3]
+    assert frames[0].image.size == (64, 48)
+    assert len(sample_frames(path, max_frames=2)) == 2

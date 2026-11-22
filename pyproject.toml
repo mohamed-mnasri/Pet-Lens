@@ -68,7 +68,7 @@ plugins = ["pydantic.mypy"]
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["pyarrow", "pyarrow.*", "sklearn", "sklearn.*", "joblib", "timm", "timm.*", "torch", "torch.*"]
+module = ["pyarrow", "pyarrow.*", "sklearn", "sklearn.*", "joblib", "timm", "timm.*", "torch", "torch.*", "rfdetr", "rfdetr.*", "av", "av.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

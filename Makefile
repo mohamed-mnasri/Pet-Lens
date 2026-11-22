@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell data data-oxford data-commons data-build install-ml embed screen train
+.PHONY: install lint format types test test-db check db-up db-down db-shell data data-oxford data-commons data-build install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -52,3 +52,7 @@ screen:
 
 train:
 	uv run python -m petlens.models train
+
+# Step 5: analyse photos or clips, e.g. make analyse FILES="D:/petlens-data/footage/cat.mp4"
+analyse:
+	uv run --extra ml python -m petlens.vision $(FILES)

@@ -27,7 +27,8 @@ def _p(*values: float) -> np.ndarray:
 def test_accept_confident_and_familiar() -> None:
     d = decide(_p(0.05, 0.05, 0.05, 0.85), CATS, 0.2, "cat", CFG, PAIRS)
     assert (d.outcome, d.label, d.also) == ("accept", "ragdoll", None)
-    assert d.top3[0] == ("ragdoll", pytest.approx(0.85))
+    assert d.top3[0][0] == "ragdoll"
+    assert d.top3[0][1] == pytest.approx(0.85)
 
 
 def test_accept_names_close_pair_partner() -> None:

@@ -21,7 +21,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 2 | Dataset pipeline: Oxford + Commons, domestic and unknown sets, grouped splits | 1: Core | Done (first manifest: 2026-11-22-2e986370) |
 | 3 | Embeddings, baseline heads, calibration, Commons screening | 1: Core | Done |
 | 4 | Open-set score and decision policy | 1: Core | Done (false breed claim rate 0.6% on 174 domestic test cats) |
-| 5 | Detection, person blurring and clip grouping by appearance | 1: Core | Not started |
+| 5 | Detection, person blurring and clip grouping by appearance | 1: Core | In progress (code and tests done; real run pending) |
 | 6 | Database schema, contracts, API, input limits and hardening | 1: Core | Not started |
 | 7 | Job queue and worker | 1: Core | Not started |
 | 8 | Upload page with evidence panel (Phase 1 gate) | 1: Core | Not started |
@@ -175,6 +175,14 @@ Done when:
 - If grouping is ambiguous, the clip returns per-frame results and says why.
 
 Done when: a test clip with one cat gives one answer, a test clip with two cats gives two, and photo and clip latency are measured.
+
+Implementation notes:
+
+- Code lives in `petlens.vision`: `detect` (RF-DETR wrapper, animal threshold 0.5, person threshold 0.3), `privacy` (Gaussian blur over padded person boxes), `video` (PyAV, one frame per second, at most 10 frames, rotation metadata respected), `grouping` (greedy appearance grouping that never merges two detections from the same frame) and `pipeline` (photo and clip analysis).
+- Breeds are classified on the original pixels; only the copy that would be stored is blurred.
+- Grouping is called ambiguous when a detection is almost equally similar to two groups (within 0.05); the clip then returns per-frame results with the reason.
+- `make analyse FILES="cat.jpg clip.mp4"` loads the latest run, the policy and the detector and prints each answer with its latency.
+- Unit tests use a fake detector and fake embeddings, so CI needs neither torch nor the RF-DETR weights. The real run on my machine still has to record photo and clip latency.
 
 **Step 6. Schema, contracts, API, limits and hardening.**
 
