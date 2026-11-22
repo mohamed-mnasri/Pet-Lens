@@ -60,7 +60,10 @@ FastAPI ingest (Pydantic contracts) ──► PostgreSQL + pgvector
 ## Data
 
 - **Training:** [Oxford-IIIT Pet Dataset](https://www.robots.ox.ac.uk/~vgg/data/pets/): 37 breeds (12 cat, 25 dog), CC BY-SA 4.0. Downloaded by script; images are **not** committed to this repo.
-- **Real-world testing:** the author's own photos and videos.
+- **Expansion:** [Wikimedia Commons](https://commons.wikimedia.org/) breed categories, fetched through the API. Only CC0, public domain, CC BY and CC BY-SA files are used, with author and licence recorded per file. Not committed either.
+- **Real-world testing and review:** my own photos and videos, checked through the human-in-the-loop review page.
+
+The reasoning, numbers and sources are in [docs/DATASET.md](docs/DATASET.md).
 
 ## Roadmap
 

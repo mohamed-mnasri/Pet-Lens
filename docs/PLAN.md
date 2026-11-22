@@ -18,13 +18,13 @@ Working roadmap for PetLens. I update this file as steps land. The full design r
 | # | Step | Phase | Status |
 | --- | --- | --- | --- |
 | 1 | Local setup and repo skeleton | 1: Core | In progress |
-| 2 | Dataset download and split manifest | 1: Core | Not started |
-| 3 | Embeddings, baseline head, calibration, ONNX export | 1: Core | Not started |
-| 4 | Unknown-breed detection and decision policy | 1: Core | Not started |
+| 2 | Dataset pipeline: Oxford + Wikimedia Commons, grouped splits | 1: Core | Not started |
+| 3 | Embeddings, baseline head, calibration, Commons screening | 1: Core | Not started |
+| 4 | Unknown breeds, domestic cats and decision policy | 1: Core | Not started |
 | 5 | Detection, tracking and person blurring | 1: Core | Not started |
-| 6 | Database schema, contracts and API | 1: Core | Not started |
+| 6 | Database schema, contracts, API and input limits | 1: Core | Not started |
 | 7 | Live and Upload pages (Phase 1 gate) | 1: Core | Not started |
-| 8 | Review queue, blind audit and quality signals | 2: Data engineering | Not started |
+| 8 | Human-in-the-loop batch validation, review queue and blind audit | 2: Data engineering | Not started |
 | 9 | dbt evaluation marts and tests | 2: Data engineering | Not started |
 | 10 | Model registry, golden set and promotion gate | 2: Data engineering | Not started |
 | 11 | GPU fine-tuning and regression gate (Phase 2 gate) | 2: Data engineering | Not started |
@@ -96,26 +96,59 @@ docs/adr/
 
 ### Phase 1: Core
 
-**Step 2. Dataset and splits.** `make data` downloads Oxford-IIIT Pet to D:, verifies checksums and writes a fixed-seed train / val / calibration / test split manifest. Four breeds are held out entirely to test unknown-breed detection later. The manifest is committed; images are not.
+**Step 2. Dataset pipeline and splits.** `make data` builds a versioned manifest from two sources. The full reasoning, numbers and sources are in [DATASET.md](DATASET.md).
 
-**Step 3. Baseline classifier.** PyTorch with CUDA. DINOv2 ViT-S/14 embeddings for every image, stored as Parquet. Logistic-regression head, then a small MLP, picked on validation macro-F1. Temperature scaling on the calibration split. ONNX export.
-Done when: test top-1, macro-F1 and ECE before and after calibration are recorded.
+- **Oxford-IIIT Pet** (core, clean labels): download, verify checksums, derive body crops from the trimaps, keep the official test split minus leaked duplicates.
+- **Wikimedia Commons** (expansion and unseen-source test): pull breed categories through the MediaWiki API with a proper User-Agent and throttling. Keep only CC0, public domain, CC BY and CC BY-SA files, and record author, licence and URL for every file. Commons category names are weak labels, not ground truth.
+- **Filters:** exactly one cat or dog found by the detector, short side at least 224 px, corrupt and near-black files dropped.
+- **Duplicates:** SHA-256 for exact copies, pHash plus DINOv2 cosine similarity for near-duplicates, grouped into clusters.
+- **Splits:** grouped by cluster, cat, video or Commons uploader, stratified, fixed seed. Existing assignments never move when data is added. A set of Commons uploaders is held out entirely as the unseen-source test.
+- **Held-out breeds:** 2 cat and 2 dog breeds, kept out of training to test unknown-breed detection.
+- Manifests, `breeds.yaml`, `sources.yaml` and a quality report are committed; images are not.
 
-**Step 4. Unknown breeds and decision policy.** kNN or Mahalanobis distance in embedding space, tuned on the held-out breeds and non-pet images. Decision policy (accept / abstain / review) as plain config.
-Done when: every policy branch has a unit test, and held-out breeds are mostly flagged as unknown.
+Done when: `make data` reruns with no changes, a test proves no group crosses splits, every row has a licence and attribution, and the quality report shows counts per class, source and split.
+
+**Step 3. Baseline classifier and Commons screening.** PyTorch with CUDA. DINOv2 ViT-S/14 embeddings for every crop, stored as Parquet. Per-species logistic-regression head (12 cat, 25 dog breeds), then a small MLP, picked on validation macro-F1. Temperature scaling on the calibration split. ONNX export.
+v0 trains on Oxford only, then screens the Commons candidates: if the category label is in the model's top 3, the image joins the training pool; if not, it goes to my review queue in Step 8 instead of being dropped. A random 5% of the agreements also go to review, so I can measure how noisy the agreed labels are.
+Done when: top-1, top-3, macro-F1 and ECE before and after calibration are recorded on both the in-domain test and the unseen-source test, and a learning curve (25 / 50 / 100% of training data) is plotted.
+
+**Step 4. Unknown breeds, domestic cats and decision policy.** kNN or Mahalanobis distance in embedding space, tuned on the held-out breeds and non-pet images. Decision policy (accept / abstain / review) as plain config. A cat that doesn't clearly match a breed gets "domestic cat, no clear breed", which is the right answer for most pet cats, not a failure. Explicit domestic shorthair and longhair classes come later, once each has 150+ checked images from 3+ sources.
+Done when: every policy branch has a unit test, held-out breeds are mostly flagged as unknown, and the risk-coverage curve and abstention rate on domestic cats are reported.
 
 **Step 5. Detection and tracking.** RF-DETR (Apache-licensed sizes only) for cats and dogs, ByteTrack via `supervision`, track-level voting so video doesn't flicker, people blurred.
 Done when: a video goes in and tracked boxes with per-track top 3 come out, with webcam FPS measured.
 
 **Step 6. Schema, contracts, API.** Alembic migrations for the core tables, Pydantic contracts mirroring them, a dead-letter table for rejected payloads. FastAPI endpoints: `/predict/image`, `/predict/video`, `/runs/{id}`.
-Done when: every event lands in Postgres and API tests run in CI.
 
-**Step 7. Live and Upload pages.** Streamlit, camera view with tracked boxes and top-3 cards, upload grid.
+Input limits, enforced at the API before anything is decoded or stored (values live in config):
+
+| Input | Limit | What gets stored |
+| --- | --- | --- |
+| Photo | JPEG, PNG or WebP; at most 15 MB and 40 megapixels | A copy resized to 1280 px on the long side (JPEG, quality 90), plus one 448 px crop per detected animal |
+| Video | MP4, MOV or WebM; at most 250 MB and 3 minutes; decoded at up to 1080p | Sampled at 5 fps for detection and tracking; the 3 sharpest 448 px crops per track. The original is deleted after processing unless it is in a review batch |
+| Live camera | No recording | The sharpest crop per track, at most one per track per minute |
+| Review batch | At most 200 files | Originals kept for 30 days for review, then deleted; crops and labels stay |
+
+Over-limit files are rejected with a clear message and logged to the dead-letter table, never silently trimmed. `make storage-report` shows usage per folder, and unreviewed media older than the retention window is pruned. Rough budget: a 448 px crop is about 40 KB and a ViT-S embedding is 1.5 KB, so 10,000 reviewed crops come to under 500 MB.
+
+Done when: every event lands in Postgres, API tests run in CI, and every limit has a test with an over-limit file.
+
+**Step 7. Live and Upload pages.** Streamlit, camera view with tracked boxes and top-3 cards, upload grid. The upload page shows the limits up front and rejects oversize files before uploading them.
 **Phase 1 gate:** image, video or camera in; calibrated top 3 and a decision out; every event in Postgres; CI green. Tag `v0.2.0`.
 
 ### Phase 2: Data engineering and feedback loop
 
-**Step 8. Review queue.** Review page and `review` table with `sample_reason`. 5% of confident predictions go to a blind random audit so accuracy isn't only measured on the hard cases. Quality signals: blur, brightness, box size.
+**Step 8. Human-in-the-loop validation.** This is where the model gets checked by a person and the checked results flow back into the data.
+
+- **Batch validation:** I drop a batch of photos and videos into `D:\petlens-data\inbox\<batch>`. `make review-batch` runs them through the full pipeline (detect, crop, classify, decide) and queues every prediction.
+- **Review page:** for each crop I click *right*, *wrong* or *not sure*. On *wrong* I pick from the top 3, "domestic / no clear breed", "not a cat or dog", or type the breed. *Not sure* is a valid answer; I'm not a breed expert and guessing would add noise.
+- **Commons queue:** the Commons images Step 3 couldn't agree with, plus the 5% random sample of agreements, go through the same page.
+- **Blind audit:** 5% of confident predictions are sampled at random, so accuracy isn't only measured on the hard cases.
+- **Storage:** predictions and `label_event` rows are append-only. A label event records who proposed it (me, Commons category, auditor), its status and when it was reviewed. Nothing overwrites history.
+- **Getting into training:** only reviewed labels enter a new dataset version, and they go through the Step 2 pipeline like any other source (dedupe, grouping, quality checks). My own cats are grouped by identity and mostly feed the test and golden sets, capped at 20 images per cat per version. The model's own unreviewed predictions never become training labels, and audit and golden-set images are never trained on.
+- Quality signals: blur, brightness, box size.
+
+Done when: a batch of 50+ real photos and clips goes in, gets reviewed, and the reviewed labels show up in the next dataset version's manifest with their origin recorded.
 
 **Step 9. dbt marts.** Staging, intermediate, and marts for accuracy, calibration, confused pairs, failure slices and abstention. dbt tests and unit tests on the calibration logic.
 Done when: `dbt build` is green locally and in CI on fixtures.
@@ -149,6 +182,7 @@ Not cutting: unknown-breed handling, review with blind audit, auditor scorecard,
 
 ## Open decisions
 
-- **Licence:** decide before the repo goes public. Leaning MIT or Apache 2.0. Oxford-IIIT images stay CC BY-SA and are never in the repo.
+- **Licence:** decide before the repo goes public. Leaning MIT or Apache 2.0. Oxford-IIIT images stay CC BY-SA and are never in the repo. Commons images are never in the repo either; an attribution list is generated from the manifest.
+- **Stanford Dogs:** optional for wider dog coverage. It comes from ImageNet, whose terms allow non-commercial research and education only, so it stays out unless I decide that's acceptable for a portfolio project.
 - **Going public:** planned at the Phase 2 gate, earlier if Phase 1 looks presentable.
 - **Python version:** pinned to 3.12 for the widest PyTorch, RF-DETR and dbt support.
