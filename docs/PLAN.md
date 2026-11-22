@@ -18,7 +18,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | # | Step | Phase | Status |
 | --- | --- | --- | --- |
 | 1 | Local setup and repo skeleton | 1: Core | In review |
-| 2 | Dataset pipeline: Oxford + Commons, domestic and unknown sets, grouped splits | 1: Core | Done (first committed manifest still to generate) |
+| 2 | Dataset pipeline: Oxford + Commons, domestic and unknown sets, grouped splits | 1: Core | Done (first manifest: 2026-11-22-2e986370) |
 | 3 | Embeddings, baseline heads, calibration, Commons screening | 1: Core | In progress (3a done) |
 | 4 | Open-set score and decision policy | 1: Core | Not started |
 | 5 | Detection, person blurring and clip grouping by appearance | 1: Core | Not started |
