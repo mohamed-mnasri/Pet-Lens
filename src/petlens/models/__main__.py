@@ -8,7 +8,7 @@ import logging
 from petlens.config import get_settings
 from petlens.data.catalog import REPO_DATA_DIR, load_breeds
 from petlens.data.manifest import read_manifest
-from petlens.models import embed, train
+from petlens.models import embed, screening, train
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -17,7 +17,8 @@ def main(argv: list[str] | None = None) -> None:
     e = sub.add_parser("embed", help="DINOv2 embeddings for the latest dataset version")
     e.add_argument("--batch-size", type=int, default=64)
     e.add_argument("--device", default=None, help="cuda or cpu (default: cuda if available)")
-    sub.add_parser("train", help="train and evaluate the baseline heads")
+    sub.add_parser("screen", help="screen Commons breed photos with the v0 head")
+    sub.add_parser("train", help="train and evaluate the heads")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -36,12 +37,23 @@ def main(argv: list[str] | None = None) -> None:
         out = embed.cache_path(settings.data_dir, model).with_name(f"{version}.parquet")
         embed.write_embeddings(vecs, out)
         print(f"embeddings for {len(vecs)} images: {out}")
-    elif args.stage == "train":
+    else:
         path = embed.cache_path(settings.data_dir, model).with_name(f"{version}.parquet")
         if not path.exists():
             raise SystemExit("no embeddings for this dataset version; run `make embed` first")
         vecs = embed.read_embeddings(path)
-        heads, metrics = train.train(rows, vecs, load_breeds())
+        screen_path = REPO_DATA_DIR / "screening" / f"{version}.parquet"
+        if args.stage == "screen":
+            results = screening.screen(rows, vecs, load_breeds())
+            screening.write(results, screen_path)
+            report = screening.render_report(version, results)
+            screen_path.with_suffix(".md").write_text(report, encoding="utf-8")
+            print(report)
+            return
+        admitted = (
+            screening.admitted(screening.read(screen_path)) if screen_path.exists() else frozenset()
+        )
+        heads, metrics = train.train(rows, vecs, load_breeds(), admitted=admitted)
         run = train.save_run(settings.models_dir, version, model, heads, metrics)
         print((run / "report.md").read_text(encoding="utf-8"))
 

@@ -38,3 +38,5 @@ Thumbs.db
 
 # Dataset manifests are committed (images are not)
 !/data/manifests/*.parquet
+!/data/screening/
+!/data/screening/*.parquet

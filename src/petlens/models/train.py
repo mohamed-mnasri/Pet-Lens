@@ -26,9 +26,18 @@ TEST_SETS = ("test_in_domain", "test_unseen_source", "test_domestic")
 LEARNING_CURVE = (0.25, 0.5, 1.0)
 
 
+POOL = ("train", "val", "calibration")
+LEAK_COSINE = 0.97  # held-out images this close to a training image are left out of evaluation
+
+
 def in_v0_training_pool(r: ManifestRow) -> bool:
     """Oxford, or the domestic class from Commons. Unscreened Commons breeds are not."""
     return r.source == "oxford" or r.breed == "domestic_cat"
+
+
+def in_training_pool(r: ManifestRow, admitted: frozenset[str]) -> bool:
+    """v0 pool plus the Commons images screening admitted."""
+    return in_v0_training_pool(r) or r.image_id in admitted
 
 
 @dataclass
@@ -43,6 +52,7 @@ def build_arrays(
     emb: dict[str, np.ndarray],
     breeds: BreedCatalog,
     species: Species,
+    admitted: frozenset[str] = frozenset(),
 ) -> SpeciesData:
     classes = breeds.training_classes(species)
     index = {c: i for i, c in enumerate(classes)}
@@ -51,7 +61,7 @@ def build_arrays(
         if r.species != species or r.breed not in index or r.image_id not in emb:
             continue
         split = r.split or ""
-        if split in ("train", "val", "calibration") and not in_v0_training_pool(r):
+        if split in POOL and not in_training_pool(r, admitted):
             continue
         if split in ("train", "val", "calibration", *TEST_SETS):
             buckets.setdefault(split, []).append(r)
@@ -70,17 +80,42 @@ def _subsample(n: int, fraction: float, seed: int) -> IntArray:
     return np.sort(rng.permutation(n)[:k]).astype(np.int64)
 
 
+def drop_leaks(d: SpeciesData, threshold: float = LEAK_COSINE) -> dict[str, int]:
+    """Remove held-out images that are near-copies of a training image (by embedding).
+
+    Splits never move; a leaking image is only left out of evaluation. Embeddings are
+    L2-normalised, so the dot product is the cosine similarity.
+    """
+    dropped: dict[str, int] = {}
+    if "train" not in d.x or not len(d.x["train"]):
+        return dropped
+    train_x = d.x["train"] / np.linalg.norm(d.x["train"], axis=1, keepdims=True)
+    for split in TEST_SETS:
+        if split not in d.x or not len(d.x[split]):
+            continue
+        x = d.x[split] / np.linalg.norm(d.x[split], axis=1, keepdims=True)
+        keep = np.ones(len(x), dtype=bool)
+        for start in range(0, len(x), 1024):
+            sims = x[start : start + 1024] @ train_x.T
+            keep[start : start + 1024] = sims.max(axis=1) < threshold
+        dropped[split] = int((~keep).sum())
+        d.x[split], d.y[split] = d.x[split][keep], d.y[split][keep]
+    return dropped
+
+
 def train(
     rows: list[ManifestRow],
     emb: dict[str, np.ndarray],
     breeds: BreedCatalog,
     seed: int = 0,
+    admitted: frozenset[str] = frozenset(),
 ) -> tuple[dict[str, SpeciesHead], dict[str, object]]:
     heads: dict[str, SpeciesHead] = {}
     metrics: dict[str, object] = {}
     empty_x, empty_y = np.zeros((0, 1)), np.zeros(0, dtype=np.int64)
     for species in ("cat", "dog"):
-        d = build_arrays(rows, emb, breeds, species)
+        d = build_arrays(rows, emb, breeds, species, admitted)
+        leaks = drop_leaks(d)
         if "train" not in d.x or len(set(d.y["train"].tolist())) < 2:
             continue
 
@@ -128,6 +163,12 @@ def train(
             "val_macro_f1": head.candidates,
             "temperature": head.temperature,
             "split_sizes": {s: len(v) for s, v in d.y.items()},
+            "admitted_commons": sum(
+                1
+                for r in rows
+                if r.species == species and r.image_id in admitted and (r.split or "") in POOL
+            ),
+            "leaks_dropped": leaks,
             "tests": per_test,
             "learning_curve": curve,
         }
@@ -146,7 +187,8 @@ def render_report(run_id: str, dataset_version: str, model: str, metrics: dict[s
         "",
         f"- Dataset: {dataset_version}",
         f"- Embeddings: {model} (frozen)",
-        "- Training pool: Oxford + Commons domestic cats (Commons breeds wait for screening)",
+        "- Training pool: Oxford + Commons domestic cats + Commons breed photos admitted by "
+        "screening",
         "",
     ]
     for species, m in metrics.items():
@@ -157,6 +199,10 @@ def render_report(run_id: str, dataset_version: str, model: str, metrics: dict[s
             f"- Classes: {len(m['classes'])}. Head picked on validation macro-F1: **{m['head']}** "
             f"({', '.join(f'{k} {v:.3f}' for k, v in m['val_macro_f1'].items())})",
             f"- Temperature: {m['temperature']:.3f}",
+            f"- Commons breed photos admitted by screening (train/val/calibration): "
+            f"{m['admitted_commons']}",
+            f"- Held-out images left out as near-copies of training images: "
+            f"{sum(m['leaks_dropped'].values())} {m['leaks_dropped'] or ''}",
             f"- Split sizes: {', '.join(f'{k} {v}' for k, v in sorted(m['split_sizes'].items()))}",
         ]
         if "domestic_test_called_a_breed" in m:

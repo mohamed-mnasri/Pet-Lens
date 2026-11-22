@@ -124,3 +124,64 @@ def _png(seed: int) -> bytes:
     buf = io.BytesIO()
     Image.fromarray(arr).save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _synthetic(
+    seed: int = 1,
+) -> tuple[list[ManifestRow], dict[str, np.ndarray], dict[str, np.ndarray]]:
+    cats = BREEDS.training_classes("cat")
+    rng = np.random.default_rng(seed)
+    centres = {c: rng.normal(size=16) * 4 for c in cats}
+    rows, emb = [], {}
+    k = 0
+    for c in cats:
+        for s in ["train"] * 12 + ["val"] * 3 + ["calibration"] * 3 + ["test_in_domain"] * 4:
+            k += 1
+            source = "commons" if c == "domestic_cat" else "oxford"
+            rows.append(_row(f"i{k}", c, s, source, "cat"))
+            emb[f"i{k}"] = (centres[c] + rng.normal(size=16)).astype(np.float32)
+    return rows, emb, centres
+
+
+def test_screening_admits_agreement_and_queues_disagreement() -> None:
+    from petlens.models import screening
+
+    rows, emb, centres = _synthetic()
+    rng = np.random.default_rng(5)
+    for k in range(200):  # Commons Ragdolls that look like Ragdolls
+        rows.append(_row(f"good{k}", "ragdoll", "train", "commons", "cat"))
+        emb[f"good{k}"] = (centres["ragdoll"] + rng.normal(size=16)).astype(np.float32)
+    rows.append(_row("mislabel", "ragdoll", "train", "commons", "cat"))  # looks like a Persian
+    emb["mislabel"] = centres["persian"].astype(np.float32)
+    rows.append(_row("heldout", "ragdoll", "test_unseen_source", "commons", "cat"))
+    emb["heldout"] = centres["ragdoll"].astype(np.float32)
+
+    results = {r.image_id: r for r in screening.screen(rows, emb, BREEDS)}
+    assert "heldout" not in results  # test images are never screened into training
+    assert results["mislabel"].decision == "review"
+    assert results["mislabel"].predicted == "persian"
+    goods = [results[f"good{k}"].decision for k in range(200)]
+    assert all(d.startswith("admit") for d in goods)
+    assert 2 <= goods.count("admit_and_review") <= 25  # about 5%
+    report = screening.render_report("v1", list(results.values()))
+    assert "ragdoll -> persian: 1" in report
+
+    admitted = screening.admitted(list(results.values()))
+    _, metrics = train.train(rows, emb, BREEDS, admitted=admitted)
+    cat = metrics["cat"]
+    assert isinstance(cat, dict)
+    assert cat["admitted_commons"] == 200
+
+
+def test_drop_leaks_removes_copies_of_training_images() -> None:
+    rows, emb, _ = _synthetic()
+    rng = np.random.default_rng(9)
+    emb = {k: rng.normal(size=16).astype(np.float32) for k in emb}  # unrelated directions
+    first_train = next(r for r in rows if r.split == "train")
+    rows.append(_row("copy", first_train.breed, "test_in_domain", "oxford", "cat"))
+    emb["copy"] = emb[first_train.image_id] * 1.0001
+    d = train.build_arrays(rows, emb, BREEDS, "cat")
+    before = len(d.y["test_in_domain"])
+    dropped = train.drop_leaks(d)
+    assert dropped["test_in_domain"] == 1
+    assert len(d.y["test_in_domain"]) == before - 1

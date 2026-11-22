@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell data data-oxford data-commons data-build install-ml embed train
+.PHONY: install lint format types test test-db check db-up db-down db-shell data data-oxford data-commons data-build install-ml embed screen train
 
 install:
 	uv sync
@@ -46,6 +46,9 @@ install-ml:
 
 embed:
 	uv run --extra ml python -m petlens.models embed
+
+screen:
+	uv run python -m petlens.models screen
 
 train:
 	uv run python -m petlens.models train

@@ -142,7 +142,7 @@ Step 3 lands in two parts:
 | Part | Scope | Status |
 | --- | --- | --- |
 | 3a | DINOv2 ViT-S/14 embeddings via `timm` (crop from the box with a 10% margin, padded square, 224 px, fp16 on the GPU, cached and resumable), logistic regression vs MLP heads per species picked on validation macro-F1, temperature scaling, metrics per test set before and after calibration, learning curve, run saved with weights hash. `make install-ml`, `make embed`, `make train` | Done |
-| 3b | DINOv2 near-duplicate leak check, Commons screening (top-1 agreement plus a 5% sample to review), retrain with the admitted Commons images | Not started |
+| 3b | DINOv2 near-duplicate leak check (held-out images with cosine 0.97 or more to a training image are left out of evaluation), Commons screening (top-1 agreement admits, disagreements and a seeded 5% sample wait for review; results committed to `data/screening/<version>.parquet`), retrain with the admitted photos, balanced class weights. `make screen`, `make train` | In progress |
 
 Torch and timm are an optional extra (`ml`), so CI and the data pipeline don't install them.
 

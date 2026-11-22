@@ -24,7 +24,9 @@ HeadKind = Literal["logreg", "mlp"]
 
 def make_head(kind: HeadKind, seed: int) -> Pipeline:
     if kind == "logreg":
-        clf: object = LogisticRegression(C=1.0, max_iter=2000, random_state=seed)
+        clf: object = LogisticRegression(
+            C=1.0, max_iter=2000, class_weight="balanced", random_state=seed
+        )
     else:
         clf = MLPClassifier(
             hidden_layer_sizes=(512,),
