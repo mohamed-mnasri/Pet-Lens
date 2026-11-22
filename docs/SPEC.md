@@ -65,7 +65,7 @@ FastAPI ingest: signature check, limits, EXIF fix + GPS strip,
         │
         ├── small jobs: inline           ├── batches: job table ──► worker
         ▼                                ▼
-Detect (RF-DETR) ── people blurred ── crop ── DINOv2 embedding
+Detect (RF-DETR) ── faces blurred ── crop ── DINOv2 embedding
         │
         ▼
 Per-species head + kNN open-set score (pgvector) ── calibrated decision policy
@@ -138,7 +138,7 @@ See [DATASET.md](DATASET.md) for numbers and sources. The decisions are:
 
 ## 8. Model strategy
 
-1. **Detection.** RF-DETR finds cats, dogs and people. Species comes from the detector. People are blurred in anything stored.
+1. **Detection.** RF-DETR finds cats, dogs and people. Species comes from the detector. People's faces are blurred in anything stored.
 2. **Crops.** Detector-style crops with a 10% margin, padded square, at 224 px.
 3. **Embedding.** DINOv2 ViT-S/14 frozen as the baseline. Embeddings are stored in Parquet for training and in pgvector for serving.
 4. **Heads.** One per species:

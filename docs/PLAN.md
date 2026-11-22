@@ -170,7 +170,7 @@ Done when:
 
 **Step 5. Detection and clip grouping.**
 
-- RF-DETR (Apache-licensed sizes only) for cats, dogs and people. People are blurred in anything stored.
+- RF-DETR (Apache-licensed sizes only) for cats, dogs and people. People's faces are blurred in anything stored.
 - No tracker. Clips are sampled at one frame per second, and detections across frames are grouped by appearance (DINOv2 similarity plus a box-size check). Each group gets its own averaged answer, so a two-cat clip gives two answers.
 - If grouping is ambiguous, the clip returns per-frame results and says why.
 
@@ -178,7 +178,7 @@ Done when: a test clip with one cat gives one answer, a test clip with two cats 
 
 Implementation notes:
 
-- Code lives in `petlens.vision`: `detect` (RF-DETR wrapper, animal threshold 0.5, person threshold 0.3), `privacy` (Gaussian blur over padded person boxes), `video` (PyAV, one frame per second, at most 10 frames, rotation metadata respected), `grouping` (greedy appearance grouping that never merges two detections from the same frame) and `pipeline` (photo and clip analysis).
+- Code lives in `petlens.vision`: `detect` (RF-DETR wrapper, animal threshold 0.5, person threshold 0.3), `privacy` (Gaussian blur over the head region of each person box: the top of the box, about a fifth of a standing person or half of a close-up, so a pet held in someone's arms stays visible), `video` (PyAV, one frame per second, at most 10 frames, rotation metadata respected), `grouping` (greedy appearance grouping that never merges two detections from the same frame) and `pipeline` (photo and clip analysis).
 - Breeds are classified on the original pixels; only the copy that would be stored is blurred.
 - Grouping is called ambiguous when a detection is almost equally similar to two groups (within 0.05); the clip then returns per-frame results with the reason.
 - `make analyse FILES="cat.jpg clip.mp4"` loads the latest run, the policy and the detector and prints each answer with its latency.
@@ -189,7 +189,7 @@ Results on my machine (RF-DETR base + DINOv2 on an RTX 2060):
 
 - Models load in about 23 s. A photo takes 0.08 to 0.12 s after the first (about 1.2 s with CUDA warm-up).
 - A 6-frame one-cat clip gives one group in 0.71 s (0.12 s per frame); a 6-frame two-cat clip gives two groups in 0.69 s.
-- Known gaps: a cat held in someone's arms can be missed (the person box wins), the blurred copy hides an animal that a person is holding, and rotation metadata still needs a real phone clip to test.
+- Known gaps: a cat held in someone's arms can be missed (the person box wins), faces are found from the person box rather than a face detector (a person lying down or upside down may not have the head at the top), and rotation metadata still needs a real phone clip to test.
 
 **Step 6. Schema, contracts, API, limits and hardening.**
 
