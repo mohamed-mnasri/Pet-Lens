@@ -22,8 +22,11 @@ breeds:
   - {id: siamese, name: Siamese, species: cat, role: train, oxford_label: Siamese, commons_categories: [Siamese cats]}
   - {id: sphynx, name: Sphynx, species: cat, role: train, oxford_label: Sphynx, commons_categories: [Sphynx (cat)]}
 
-  # Cats: the domestic class (no breed), trained from day one
-  - {id: domestic_cat, name: Domestic cat (no clear breed), species: cat, role: train, commons_categories: [Domestic short-haired cats, Domestic long-haired cats]}
+  # Cats: the domestic class (no breed), trained from day one.
+  # Commons has no "Domestic long-haired cats"; "Long-haired cats" is the real one. Its
+  # "Long-haired cats by breed" subcategory holds breeds one level further down, so keep
+  # --depth at 1 or breed photos (Siberian, Turkish Van, ...) would be labelled domestic.
+  - {id: domestic_cat, name: Domestic cat (no clear breed), species: cat, role: train, commons_categories: [Domestic short-haired cats, Long-haired cats]}
 
   # Cats: breeds Oxford doesn't have, kept for the unknown-breed test
   - {id: norwegian_forest_cat, name: Norwegian Forest Cat, species: cat, role: unknown, commons_categories: [Norwegian Forest Cats]}
