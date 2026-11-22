@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 7. Job queue and worker
+**Current step:** 8. Upload page with evidence panel
 **Last updated:** 2026-11-22
 
 ## Principles I'm holding myself to
@@ -23,7 +23,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 4 | Open-set score and decision policy | 1: Core | Done (false breed claim rate 0.6% on 174 domestic test cats) |
 | 5 | Detection, person blurring and clip grouping by appearance | 1: Core | Done (photo 0.1 s, 6-frame clip 0.7 s on an RTX 2060) |
 | 6 | Database schema, contracts, API, input limits and hardening | 1: Core | Done (API and limit tests run in CI against Postgres) |
-| 7 | Job queue and worker | 1: Core | Not started |
+| 7 | Job queue and worker | 1: Core | Done (UI progress view comes with Step 8) |
 | 8 | Upload page with evidence panel (Phase 1 gate) | 1: Core | Not started |
 | 9 | Swipe review app, blind audit and reviewer checks | 2: Data engineering | Not started |
 | 10 | Evaluation module and dbt marts | 2: Data engineering | Not started |
@@ -241,6 +241,13 @@ Implementation notes:
 - Batch reviews, Commons screening and later VLM screening all run here. Single photos and clips stay synchronous.
 
 Done when: tests cover claim, retry, crash recovery and no double claims, and the UI shows job progress.
+
+Implementation notes:
+
+- `petlens.jobs.queue`: `enqueue`, `claim` (`FOR UPDATE SKIP LOCKED`, oldest runnable first), `heartbeat` (with progress and a partial result), `complete`, `fail` (retries after 30 s, 60 s, 120 s ... up to `max_attempts`, then `dead`) and `recover_stuck` (a running job with no heartbeat for 10 minutes is failed, so it retries or dies like any other failure). Times come from the database clock.
+- The worker (`make worker`) runs one job at a time, sends a heartbeat every 30 s from a separate thread so a slow step doesn't look like a crash, and stops after the current job on Ctrl+C.
+- Job kinds: `review_batch` (every photo and clip directly inside a folder, at most 200 files; each file is its own transaction, stored with upload kind `review`, and rejected files go to `dead_letter` with source `worker`; a retry skips files already stored) and `commons_screening` (the same as `make screen`).
+- `make review-batch FOLDER=...` queues a folder, `make jobs-status` lists recent jobs with progress, and `POST /jobs/review-batch` does the same from the API. `GET /jobs/{id}` returns state, progress and result, which the Step 8 page will show.
 
 **Step 8. Upload page.**
 

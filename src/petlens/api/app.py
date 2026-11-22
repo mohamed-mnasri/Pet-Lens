@@ -11,10 +11,12 @@ import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, sessionmaker
 
 from petlens import contracts as c
@@ -22,9 +24,15 @@ from petlens.api import ingest, service
 from petlens.config import Settings, get_settings
 from petlens.db import models as m
 from petlens.db.session import get_engine
+from petlens.jobs import queue
+from petlens.jobs.handlers import batch_files
 from petlens.vision.pipeline import Analyzer
 
 log = logging.getLogger(__name__)
+
+
+class ReviewBatch(BaseModel):
+    folder: str  # a folder on this PC; the worker reads its photos and clips
 
 
 def _session(request: Request) -> Iterator[Session]:
@@ -104,6 +112,18 @@ def create_app(
         if run is None:
             raise HTTPException(404, "No upload with that id")
         return run
+
+    @app.post("/jobs/review-batch", response_model=c.Job, status_code=202)
+    def queue_review_batch(body: ReviewBatch, session: DB) -> c.Job:
+        try:
+            files = batch_files(Path(body.folder))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        job = queue.enqueue(
+            session, "review_batch", {"folder": str(Path(body.folder).resolve())}, total=len(files)
+        )
+        session.commit()
+        return c.Job.model_validate(job)
 
     @app.get("/jobs/{job_id}", response_model=c.Job)
     def get_job(job_id: uuid.UUID, session: DB) -> c.Job:

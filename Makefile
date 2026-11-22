@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade api storage-report data data-oxford data-commons data-build install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade api storage-report worker review-batch jobs-status data data-oxford data-commons data-build install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -40,6 +40,16 @@ api:
 
 storage-report:
 	uv run python -m petlens.storage
+
+# Background jobs (Step 7). Run the worker in its own terminal.
+worker:
+	uv run --extra ml python -m petlens.jobs worker
+
+review-batch:
+	uv run python -m petlens.jobs review-batch "$(FOLDER)"
+
+jobs-status:
+	uv run python -m petlens.jobs status
 
 # Dataset pipeline (Step 2). Safe to rerun: only new work is done.
 data: data-oxford data-commons data-build

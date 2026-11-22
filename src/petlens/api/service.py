@@ -153,13 +153,18 @@ def _store_frame(
 
 
 def process_photo(
-    session: Session, analyzer: Analyzer, settings: Settings, data: bytes, name: str | None
+    session: Session,
+    analyzer: Analyzer,
+    settings: Settings,
+    data: bytes,
+    name: str | None,
+    kind: c.UploadKind = "photo",
 ) -> uuid.UUID:
     ingest.check_size(len(data), "photo", settings)
     ft = ingest.check_type(data, "photo")
     width, height = ingest.check_photo_pixels(data, settings)
     upload = m.Upload(
-        kind="photo",
+        kind=kind,
         original_name=ingest.safe_name(name),
         mime=ft.mime,
         size_bytes=len(data),
@@ -181,7 +186,12 @@ def process_photo(
 
 
 def process_video(
-    session: Session, analyzer: Analyzer, settings: Settings, data: bytes, name: str | None
+    session: Session,
+    analyzer: Analyzer,
+    settings: Settings,
+    data: bytes,
+    name: str | None,
+    kind: c.UploadKind = "video",
 ) -> uuid.UUID:
     ingest.check_size(len(data), "video", settings)
     ft = ingest.check_type(data, "video")
@@ -198,7 +208,7 @@ def process_video(
     if not raw:
         raise ingest.RejectedUploadError("No frames could be read from the clip", 422)
     upload = m.Upload(
-        kind="video",
+        kind=kind,
         original_name=ingest.safe_name(name),
         mime=ft.mime,
         size_bytes=len(data),
@@ -229,11 +239,16 @@ def process_video(
 
 
 def record_rejection(
-    session: Session, reason: str, name: str | None, nbytes: int | None, **payload: Any
+    session: Session,
+    reason: str,
+    name: str | None,
+    nbytes: int | None,
+    source: c.DeadLetterSource = "api",
+    **payload: Any,
 ) -> None:
     session.add(
         m.DeadLetter(
-            source="api",
+            source=source,
             reason=reason,
             filename=ingest.safe_name(name),
             size_bytes=nbytes,
