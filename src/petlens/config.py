@@ -19,6 +19,19 @@ class Settings(BaseSettings):
     # Datasets, weights and footage. Set DATA_DIR in .env (D:/petlens-data on my machine).
     data_dir: Path = Path(".petlens-data")
 
+    # API (Step 6). Local only: bind to loopback.
+    api_host: str = "127.0.0.1"
+    api_port: int = 8000
+    detector_size: str = "base"
+
+    # Upload limits, checked before anything is decoded or stored (PLAN.md Step 6).
+    photo_max_bytes: int = 15 * 1024 * 1024
+    photo_max_pixels: int = 40_000_000
+    video_max_bytes: int = 25 * 1024 * 1024
+    video_max_seconds: float = 10.0
+    crop_long_edge: int = 384
+    crop_max_bytes: int = 40_000
+
     @property
     def raw_dir(self) -> Path:
         return self.data_dir / "raw"
@@ -34,6 +47,16 @@ class Settings(BaseSettings):
     @property
     def footage_dir(self) -> Path:
         return self.data_dir / "footage"
+
+    @property
+    def uploads_dir(self) -> Path:
+        """Compressed, face-blurred copies of uploaded photos and sampled frames."""
+        return self.data_dir / "uploads"
+
+    @property
+    def inbox_dir(self) -> Path:
+        """Short-lived files while a clip is read; deleted straight after."""
+        return self.data_dir / "inbox"
 
 
 @lru_cache

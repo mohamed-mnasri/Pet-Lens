@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 6. Schema, contracts, API, limits and hardening
+**Current step:** 7. Job queue and worker
 **Last updated:** 2026-11-22
 
 ## Principles I'm holding myself to
@@ -22,7 +22,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 3 | Embeddings, baseline heads, calibration, Commons screening | 1: Core | Done |
 | 4 | Open-set score and decision policy | 1: Core | Done (false breed claim rate 0.6% on 174 domestic test cats) |
 | 5 | Detection, person blurring and clip grouping by appearance | 1: Core | Done (photo 0.1 s, 6-frame clip 0.7 s on an RTX 2060) |
-| 6 | Database schema, contracts, API, input limits and hardening | 1: Core | Not started |
+| 6 | Database schema, contracts, API, input limits and hardening | 1: Core | Done (API and limit tests run in CI against Postgres) |
 | 7 | Job queue and worker | 1: Core | Not started |
 | 8 | Upload page with evidence panel (Phase 1 gate) | 1: Core | Not started |
 | 9 | Swipe review app, blind audit and reviewer checks | 2: Data engineering | Not started |
@@ -208,7 +208,7 @@ Input limits and compression are enforced at the API before anything is stored, 
 **Hardening:**
 
 - File types are checked by signature, not extension.
-- Video duration is read with `ffprobe` before any decoding.
+- Video duration is read from the container metadata before any decoding (PyAV, which bundles FFmpeg, so there is no separate `ffprobe` to install on Windows).
 - EXIF orientation is applied once, and GPS is stripped.
 - The API binds to 127.0.0.1.
 - Inbox paths are sanitised.
@@ -224,6 +224,15 @@ Done when:
 - every limit has a test with an over-limit file
 - a test checks that a 40 MP photo is stored under 250 KB
 - an Alembic upgrade and downgrade test passes
+
+Implementation notes:
+
+- Step 6 lands in three parts: 6a schema, migrations and contracts; 6b the API; 6c limits and hardening.
+- Tables: `upload`, `frame`, `detection` (with a `vector(384)` embedding), `prediction`, `label_event`, `job`, `dataset_version`, `model_registry` and `dead_letter`. `vlm_tag` arrives with Step 13 and the pet identity tables with the pet steps. `label_event` is append-only: a trigger refuses updates and deletes.
+- Contracts (`petlens.contracts`) share their allowed values with the check constraints, and a test fails if a table and its contract drift apart. Another test compares the migrated database with the models.
+- `make db-migrate` applies the migrations, `make api` serves the API on 127.0.0.1:8000 (interactive docs at `/docs`), and `make storage-report` shows disk use per folder. Limits live in `petlens.config` and can be overridden in `.env`.
+- Prediction runs inside the request for now. Step 7 moves it onto the job queue, which is what `/jobs/{id}` will report on.
+- Photos and sampled frames are resized to 1024 px before analysis, so what is analysed is what is stored. Stored files are named by the hash of the stored bytes; the uploader's file name is only kept, cleaned, as a label in the database.
 
 **Step 7. Job queue and worker.**
 

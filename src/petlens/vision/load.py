@@ -62,4 +62,5 @@ def load_analyzer(settings: Settings, detector_size: str = "base") -> Analyzer:
         knn=knn,
         policy=cfg,
         close_pairs=[(a, b) for a, b in breeds.close_pairs],
+        version=run.name,
     )

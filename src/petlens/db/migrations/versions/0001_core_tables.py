@@ -123,6 +123,7 @@ def upgrade() -> None:
         sa.Column("height", sa.Integer(), nullable=True),
         sa.Column("duration_s", sa.Float(), nullable=True),
         sa.Column("status", sa.String(length=16), server_default="received", nullable=False),
+        sa.Column("note", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

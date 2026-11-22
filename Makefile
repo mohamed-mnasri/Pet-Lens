@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade data data-oxford data-commons data-build install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade api storage-report data data-oxford data-commons data-build install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -33,6 +33,13 @@ db-migrate:
 
 db-downgrade:
 	uv run python -m petlens.db downgrade
+
+# API on http://127.0.0.1:8000 (docs at /docs). Needs the database and the ml extra.
+api:
+	uv run --extra ml python -m petlens.api
+
+storage-report:
+	uv run python -m petlens.storage
 
 # Dataset pipeline (Step 2). Safe to rerun: only new work is done.
 data: data-oxford data-commons data-build

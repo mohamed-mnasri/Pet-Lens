@@ -44,6 +44,7 @@ class Upload(Contract):
     height: int | None = None
     duration_s: float | None = Field(default=None, ge=0)
     status: UploadStatus
+    note: str | None = None
     created_at: datetime
     updated_at: datetime
 

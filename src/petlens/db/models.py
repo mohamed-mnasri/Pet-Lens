@@ -77,6 +77,7 @@ class Upload(Base):
     height: Mapped[int | None] = mapped_column(Integer)
     duration_s: Mapped[float | None] = mapped_column(Float)
     status: Mapped[str] = mapped_column(String(16), server_default="received")
+    note: Mapped[str | None] = mapped_column(Text)  # e.g. why clip grouping was ambiguous
     created_at: Mapped[datetime] = _created()
     updated_at: Mapped[datetime] = _updated()
 

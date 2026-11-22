@@ -32,6 +32,7 @@ class Analyzer:
     policy: PolicyConfig
     close_pairs: list[tuple[str, str]] = field(default_factory=list)
     grouping: GroupingConfig = field(default_factory=GroupingConfig)
+    version: str = "unknown"  # the training run the heads come from
 
 
 @dataclass(frozen=True)
