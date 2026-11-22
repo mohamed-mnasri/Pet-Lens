@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Annotated
 
@@ -48,7 +49,14 @@ def create_app(
         return load_analyzer(cfg, cfg.detector_size)
 
     get_analyzer = analyzer or default_analyzer
-    app = FastAPI(title="PetLens", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        # Load the models before the first request (about 70 s cold), not during it.
+        get_analyzer()
+        yield
+
+    app = FastAPI(title="PetLens", version="0.1.0", lifespan=lifespan)
 
     app.state.sessions = factory
 
