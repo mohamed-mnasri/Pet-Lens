@@ -71,15 +71,15 @@ def load_dinov2(model_name: str = DEFAULT_MODEL, device: str | None = None) -> E
     std = torch.tensor(STD, device=dev).view(1, 3, 1, 1)
     log.info("loaded %s on %s", model_name, dev)
 
-    @torch.inference_mode()
     def embed(batch: list[Image.Image]) -> NDArray[np.float32]:
         arr = np.stack([np.asarray(im, dtype=np.float32) / 255.0 for im in batch])
-        x = torch.from_numpy(arr).permute(0, 3, 1, 2).to(dev)
-        x = (x - mean) / std
-        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=dev == "cuda"):
-            feats = model(x)
-        feats = torch.nn.functional.normalize(feats.float(), dim=1)
-        out: NDArray[np.float32] = feats.cpu().numpy().astype(np.float32)
+        with torch.inference_mode():
+            x = torch.from_numpy(arr).permute(0, 3, 1, 2).to(dev)
+            x = (x - mean) / std
+            with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=dev == "cuda"):
+                feats = model(x)
+            feats = torch.nn.functional.normalize(feats.float(), dim=1)
+            out: NDArray[np.float32] = np.asarray(feats.cpu().numpy(), dtype=np.float32)
         return out
 
     return embed
