@@ -178,7 +178,7 @@ Done when: a test clip with one cat gives one answer, a test clip with two cats 
 
 Implementation notes:
 
-- Code lives in `petlens.vision`: `detect` (RF-DETR wrapper, animal threshold 0.5, person threshold 0.3), `privacy` (Gaussian blur over the head region of each person box: the top of the box, about a fifth of a standing person or half of a close-up, so a pet held in someone's arms stays visible), `video` (PyAV, one frame per second, at most 10 frames, rotation metadata respected), `grouping` (greedy appearance grouping that never merges two detections from the same frame) and `pipeline` (photo and clip analysis).
+- Code lives in `petlens.vision`: `detect` (RF-DETR wrapper, animal threshold 0.5, person threshold 0.3), `privacy` (Gaussian blur over the head region of each person box: the top of the box, about a seventh of a standing person or under a third of a close-up, so a pet held in someone's arms stays visible), `video` (PyAV, one frame per second, at most 10 frames, rotation metadata respected), `grouping` (greedy appearance grouping that never merges two detections from the same frame) and `pipeline` (photo and clip analysis).
 - Breeds are classified on the original pixels; only the copy that would be stored is blurred.
 - Grouping is called ambiguous when a detection is almost equally similar to two groups (within 0.05); the clip then returns per-frame results with the reason.
 - `make analyse FILES="cat.jpg clip.mp4"` loads the latest run, the policy and the detector and prints each answer with its latency.

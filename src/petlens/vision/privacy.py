@@ -1,8 +1,8 @@
 """Blur people's faces before anything is stored.
 
 COCO has no face class, so the face is approximated as the head region: the top of
-each person box, as tall as the box is wide times ``head_ratio`` (about a fifth of a
-standing person, half of a close-up), and the full box width. This keeps a pet held
+each person box, as tall as the box is wide times ``head_ratio`` (about a seventh of a
+standing person, under a third of a close-up), and the full box width. This keeps a pet held
 in someone's arms visible while the face is hidden.
 """
 
@@ -16,7 +16,7 @@ from petlens.vision.detect import Detection
 
 
 def head_box(
-    box: tuple[float, float, float, float], head_ratio: float = 0.6, max_frac: float = 0.5
+    box: tuple[float, float, float, float], head_ratio: float = 0.45, max_frac: float = 0.3
 ) -> tuple[float, float, float, float]:
     """The head region of a person box (x0, y0, x1, y1)."""
     x0, y0, x1, y1 = box

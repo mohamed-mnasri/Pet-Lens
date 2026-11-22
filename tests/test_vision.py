@@ -98,8 +98,8 @@ def test_photo_classifies_each_animal_and_blurs_people() -> None:
     assert labels == ["bengal", "ragdoll"]
     assert all(a.decision.outcome == "accept" for a in res.animals)
     assert res.people_blurred == 1
-    before = np.asarray(img.crop((120, 150, 170, 170)), dtype=float)
-    after = np.asarray(res.image.crop((120, 150, 170, 170)), dtype=float)
+    before = np.asarray(img.crop((120, 150, 170, 162)), dtype=float)
+    after = np.asarray(res.image.crop((120, 150, 170, 162)), dtype=float)
     assert after.std() < before.std() / 3  # head region smeared out
     assert res.image.getpixel((30, 30)) == COLOURS["ragdoll"]  # animals untouched
 
@@ -153,12 +153,14 @@ def test_blur_covers_only_the_head() -> None:
     img = Image.new("RGB", (100, 200), (128, 128, 128))
     for i in range(0, 200, 2):
         img.paste((0, 0, 0) if i % 4 else (255, 255, 255), (0, i, 100, i + 2))
-    # A standing person 40 px wide and 180 px tall: the head is the top 24 px.
-    assert head_box((30, 10, 70, 190)) == pytest.approx((30, 10, 70, 34))
+    # A standing person 40 px wide and 180 px tall: the head is the top 18 px.
+    assert head_box((30, 10, 70, 190)) == pytest.approx((30, 10, 70, 28))
+    # A close-up 474 px wide and 600 px tall: the top 30% (180 px), not half.
+    assert head_box((0, 0, 474, 600)) == pytest.approx((0, 0, 474, 180))
     out = blur_people(img, [Detection("person", 0.9, (30, 10, 70, 190))], pad=0)
-    head = np.asarray(out.crop((32, 12, 68, 32)), dtype=float)
+    head = np.asarray(out.crop((32, 12, 68, 26)), dtype=float)
     body = (40, 100, 60, 180)  # where a held cat would be
-    assert head.std() < np.asarray(img.crop((32, 12, 68, 32)), dtype=float).std() / 3
+    assert head.std() < np.asarray(img.crop((32, 12, 68, 26)), dtype=float).std() / 3
     assert np.array_equal(np.asarray(out.crop(body)), np.asarray(img.crop(body)))
 
 
