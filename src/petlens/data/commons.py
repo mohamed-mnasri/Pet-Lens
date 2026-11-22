@@ -281,6 +281,7 @@ class CommonsReport:
     flags: dict[str, int] = field(default_factory=dict)
     conflicts: list[str] = field(default_factory=list)
     excluded_subcategories: dict[str, list[str]] = field(default_factory=dict)
+    empty_categories: list[str] = field(default_factory=list)
     stored_bytes: int = 0
     requests_made: int = 0
 
@@ -305,6 +306,9 @@ def build_rows(
             files, excluded = walk_category(client, category, max_depth)
             report.excluded_subcategories[category] = excluded
             report.candidates[category] = len(files)
+            if not files:
+                log.warning("Commons category %r has no usable files; check breeds.yaml", category)
+                report.empty_categories.append(category)
             for f in files:
                 by_title.setdefault(f.title, []).append((breed, f))
 
@@ -414,6 +418,9 @@ def render_report(report: CommonsReport) -> str:
     lines += [f"- {k}: {v}" for k, v in report.licences.items()] or ["- none"]
     lines += ["", "## Flags", ""]
     lines += [f"- {k}: {v}" for k, v in report.flags.items()] or ["- none"]
+    if report.empty_categories:
+        lines += ["", "## Empty categories (check the names in breeds.yaml)", ""]
+        lines += [f"- {c}" for c in report.empty_categories]
     excluded = {c: s for c, s in report.excluded_subcategories.items() if s}
     if excluded:
         lines += ["", "## Subcategories skipped as art, toys and similar", ""]

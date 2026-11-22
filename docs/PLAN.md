@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 2. Dataset pipeline (parts 2a and 2b done)
+**Current step:** 3. Embeddings and baseline classifier
 **Last updated:** 2026-11-22
 
 ## Principles I'm holding myself to
@@ -18,7 +18,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | # | Step | Phase | Status |
 | --- | --- | --- | --- |
 | 1 | Local setup and repo skeleton | 1: Core | In review |
-| 2 | Dataset pipeline: Oxford + Commons, domestic and unknown sets, grouped splits | 1: Core | In progress (2a, 2b done) |
+| 2 | Dataset pipeline: Oxford + Commons, domestic and unknown sets, grouped splits | 1: Core | Done (first committed manifest still to generate) |
 | 3 | Embeddings, baseline heads, calibration, Commons screening | 1: Core | Not started |
 | 4 | Open-set score and decision policy | 1: Core | Not started |
 | 5 | Detection, person blurring and clip grouping by appearance | 1: Core | Not started |
@@ -122,7 +122,9 @@ Step 2 is too big for one PR, so it lands in three parts:
 | --- | --- | --- |
 | 2a | `breeds.yaml`, `sources.yaml`, checksum-verified downloads, the shared ingest step (EXIF fix, metadata stripped, 1024 px WebP under 250 KB, named by SHA-256), Oxford manifest with trimap body boxes, exact-duplicate removal, ingest report. `make data-oxford` | Done |
 | 2b | Commons fetcher for the cat categories: walks each category and one level of subcategories (art, toy and drawing subcategories skipped), MediaWiki API with User-Agent, throttling, `maxlag`, backoff and an on-disk cache, licence allowlist, author, licence and uploader per file, files under two labels dropped, only the 1024 px thumbnail downloaded. `make data-commons` | Done |
-| 2c | pHash + DINOv2 near-duplicate clusters (including Oxford train/test leaks), grouped and stratified splits, dataset version, committed manifest and quality report | Not started |
+| 2c | pHash near-duplicate clusters, Oxford train/test leaks and Commons copies of test images excluded, groups (near-duplicates joined by uploader), hash-based splits that never move, dataset version (date + content hash, unchanged rebuilds keep the version), committed manifest and report, image checksums. `make data-build` | Done |
+
+DINOv2 near-duplicates need the embeddings from Step 3, so they run there as a leak check: a held-out image whose embedding is a near-copy of a training image gets excluded. Splits are never moved to fix a leak.
 
 The "exactly one cat or dog" detector filter needs the detector from Step 5. Until then Oxford uses its trimap boxes and Commons images are filtered by size and quality only; the detector filter is added as a pipeline stage in Step 5.
 

@@ -9,7 +9,7 @@ import os
 import truststore
 
 from petlens.config import get_settings
-from petlens.data import commons, oxford
+from petlens.data import commons, dataset, oxford
 from petlens.data.catalog import load_breeds, load_sources
 
 
@@ -26,6 +26,7 @@ def main(argv: list[str] | None = None) -> None:
         help="keep at most this many files per label (handy for a quick first run)",
     )
     co.add_argument("--depth", type=int, default=1, help="how deep to follow subcategories")
+    sub.add_parser("build", help="near-duplicates, groups, splits and a new dataset version")
     args = parser.parse_args(argv)
     # Verify HTTPS with the OS trust store (fixes stale intermediates on Windows).
     truststore.inject_into_ssl()
@@ -49,6 +50,10 @@ def main(argv: list[str] | None = None) -> None:
             max_depth=args.depth,
         )
         print(f"manifest: {path}")
+    elif args.stage == "build":
+        result = dataset.build(settings.data_dir, breeds)
+        state = "new version" if result.changed else "no changes, still"
+        print(f"{state} {result.version}: {result.manifest}")
 
 
 if __name__ == "__main__":
