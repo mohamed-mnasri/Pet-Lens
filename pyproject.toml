@@ -21,8 +21,9 @@ dependencies = [
 [project.optional-dependencies]
 ml = [
     "timm>=1.0.31",
-    "torch>=2.15.0",
-    "torchvision>=0.29.2",
+    # Floors match the newest CUDA 12.6 wheels for Windows (see [tool.uv.sources]).
+    "torch>=2.14.1",
+    "torchvision>=0.29.1",
 ]
 
 [dependency-groups]
@@ -33,6 +34,17 @@ dev = [
     "ruff>=0.8",
     "types-pyyaml>=6.0.12.20261122",
 ]
+
+# PyPI's Windows torch wheels are CPU-only. On Windows take CUDA 12.6 builds (works with
+# NVIDIA drivers that support CUDA 12.6+); Linux and CI keep the PyPI wheels.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu126", marker = "sys_platform == 'win32'" }]
+torchvision = [{ index = "pytorch-cu126", marker = "sys_platform == 'win32'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]
