@@ -70,7 +70,7 @@ class ClipResult:
 
 
 def _animals(a: Analyzer, img: Image.Image, dets: list[Detection]) -> list[AnimalResult]:
-    animals = [d for d in dets if d.label in a.heads]
+    animals = [d for d in dets if any(s in a.heads for s in (d.label, *d.alternatives))]
     if not animals:
         return []
     w, h = img.size
@@ -78,12 +78,19 @@ def _animals(a: Analyzer, img: Image.Image, dets: list[Detection]) -> list[Anima
     embs = a.embed(crops)
     out = []
     for d, e in zip(animals, embs, strict=True):
-        head = a.heads[d.label]
         x = e.astype(np.float64)[None, :]
+        # The detector finds animals well but often swaps cat and dog (RF-DETR scored a
+        # Siamese "dog 0.80, cat 0.28" in one frame and "cat 0.74" in the next). The
+        # species is the one whose training images the crop is closest to.
+        order = dict.fromkeys((d.label, *d.alternatives, *a.heads))
+        candidates = [s for s in order if s in a.heads]
+        dists = {s: float(a.knn[s].distance(x)[0]) for s in candidates}
+        species = min(candidates, key=lambda s: dists[s])
+        head = a.heads[species]
         probs = head.predict_proba(x)[0]
-        dist = float(a.knn[d.label].distance(x)[0])
-        dec = decide(probs, head.classes, dist, d.label, a.policy, a.close_pairs)
-        out.append(AnimalResult(d.label, d.box, d.score, dec, probs, dist, e))
+        dist = dists[species]
+        dec = decide(probs, head.classes, dist, species, a.policy, a.close_pairs)
+        out.append(AnimalResult(species, d.box, d.score, dec, probs, dist, e))
     return out
 
 

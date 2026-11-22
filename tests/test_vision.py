@@ -9,7 +9,7 @@ from PIL import Image
 from petlens.models.heads import train_species_head
 from petlens.models.openset import KnnIndex
 from petlens.models.policy import PolicyConfig, SpeciesThresholds
-from petlens.vision.detect import Detection
+from petlens.vision.detect import Detection, class_names_of, merge_animals
 from petlens.vision.grouping import GroupingConfig, Item, group_items
 from petlens.vision.pipeline import Analyzer, analyse_clip, analyse_image
 from petlens.vision.privacy import blur_people
@@ -171,3 +171,49 @@ def test_sample_frames_one_per_second(tmp_path: Path) -> None:
     assert [round(f.seconds) for f in frames] == [0, 1, 2, 3]
     assert frames[0].image.size == (64, 48)
     assert len(sample_frames(path, max_frames=2)) == 2
+
+
+class _Found:
+    def __init__(self, class_id: list[int], data: dict[str, object] | None = None) -> None:
+        self.class_id = np.asarray(class_id)
+        self.data = data or {}
+
+
+def test_class_names_use_coco_ids_not_list_index() -> None:
+    # RF-DETR puts COCO category ids in class_id (cat 17, dog 18, person 1).
+    assert class_names_of(_Found([17, 18, 1, 62])) == ["cat", "dog", "person", ""]
+    # When the prediction carries names, those win.
+    found = _Found([17], {"class_name": np.asarray(["cat"])})
+    assert class_names_of(found) == ["cat"]
+
+
+def test_merge_animals_keeps_one_box_per_animal_with_alternatives() -> None:
+    box = (100.0, 100.0, 300.0, 400.0)
+    near = (102.0, 99.0, 298.0, 398.0)
+    far = (500.0, 100.0, 650.0, 300.0)
+    merged = merge_animals(
+        [
+            Detection("dog", 0.50, near),
+            Detection("cat", 0.60, box),
+            Detection("dog", 0.21, box),  # too weak to count as an alternative
+            Detection("cat", 0.90, far),
+            Detection("cat", 0.40, (700.0, 0.0, 760.0, 60.0)),  # alone and below threshold
+        ]
+    )
+    assert [(d.label, d.score, d.alternatives) for d in merged] == [
+        ("cat", 0.90, ()),
+        ("cat", 0.60, ("dog",)),
+    ]
+    # The detector's top label can be wrong: a weaker "cat" on the box is kept as an option.
+    flipped = merge_animals([Detection("dog", 0.56, box), Detection("cat", 0.35, near)])
+    assert [(d.label, d.alternatives) for d in flipped] == [("dog", ("cat",))]
+
+
+def test_species_from_embedding_when_detector_is_unsure() -> None:
+    img, dets = _scene([("ragdoll", (40, 40))])
+    unsure = [Detection("dog", 0.56, dets[0].box, alternatives=("cat",))]
+    det = FakeDetector()
+    det.add(img, unsure)
+    res = analyse_image(_analyzer(det), img)
+    assert [a.species for a in res.animals] == ["cat"]
+    assert res.animals[0].decision.label == "ragdoll"
