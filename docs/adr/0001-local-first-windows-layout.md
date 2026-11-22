@@ -5,7 +5,7 @@
 
 ## Context
 
-PetLens has to run entirely on one Windows 11 laptop (RTX 2060, 6 GB VRAM, USB webcam) with no cloud services. It needs the webcam, the GPU, a Postgres database and, later, Ollama for the auditor model. CI runs on GitHub's Linux runners.
+PetLens has to run entirely on one Windows 11 laptop (RTX 2060, 6 GB VRAM, USB webcam) with no cloud services. It needs the webcam, the GPU, a Postgres database and, later, Ollama for the VLM image screener. CI runs on GitHub's Linux runners.
 
 Docker Desktop can't pass a USB webcam through to a container without extra tooling, and GPU access from containers on Windows adds setup friction for little benefit on a single machine.
 
