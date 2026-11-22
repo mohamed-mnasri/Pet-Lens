@@ -2,7 +2,7 @@
 
 **A fully local pet breed recognition system with an AI auditor that checks its work, and pet profiles that learn each individual animal.**
 
-> Status: **planning / pre-alpha.** This README describes the intended design. Nothing below is implemented yet; sections will be updated with real results as each phase lands.
+> Status: **pre-alpha.** This README describes the intended design. Step 1 (repo skeleton) is in progress; see [docs/PLAN.md](docs/PLAN.md) for the build plan and current status. Sections will be updated with real results as each phase lands.
 
 ---
 
@@ -68,6 +68,21 @@ FastAPI ingest (Pydantic contracts) ──► PostgreSQL + pgvector
 - [ ] **Phase 2 — Data engineering:** review queue with blind audit, dbt evaluation marts, model registry + promotion gate, CI
 - [ ] **Phase 3 — After dbt:** AI auditor (scorecard, error predictor, prompt evals) and pet profiles (re-ID, profile pages, fact-checked LLM profile cards)
 - [ ] **Phase 4 — Presentation:** one-command setup, architecture docs, ADRs, demo video
+
+## Development setup
+
+Windows 11 is the main dev machine; Linux works the same way. Requires [uv](https://docs.astral.sh/uv/), Docker and GNU Make.
+
+```bash
+git clone https://github.com/mohamed-mnasri/petlens.git
+cd petlens
+cp .env.example .env      # set DATA_DIR to where datasets and weights should live
+make install              # uv sync
+make db-up                # Postgres 16 + pgvector in Docker
+make check                # ruff, mypy, pytest
+```
+
+The DB smoke test runs only when `DATABASE_URL` is set in the environment.
 
 ## Responsible use
 

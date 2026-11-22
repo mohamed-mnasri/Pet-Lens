@@ -1,0 +1,22 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: petlens-db
+    environment:
+      POSTGRES_USER: petlens
+      POSTGRES_PASSWORD: petlens
+      POSTGRES_DB: petlens
+    ports:
+      - "5432:5432"
+    volumes:
+      - petlens_pg:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petlens -d petlens"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  petlens_pg:
