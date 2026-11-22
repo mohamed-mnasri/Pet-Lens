@@ -23,6 +23,7 @@ SCHEMA = pa.schema(
         ("breed", pa.string()),
         ("label_origin", pa.string()),
         ("group_id", pa.string()),
+        ("uploader", pa.string()),
         ("cat_id", pa.string()),
         ("video_id", pa.string()),
         ("frame_idx", pa.int32()),
@@ -51,6 +52,7 @@ class ManifestRow:
     width: int
     height: int
     group_id: str | None = None
+    uploader: str | None = None
     cat_id: str | None = None
     video_id: str | None = None
     frame_idx: int | None = None
