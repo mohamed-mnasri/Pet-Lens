@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 5. Detection and clip grouping
+**Current step:** 6. Schema, contracts, API, limits and hardening
 **Last updated:** 2026-11-22
 
 ## Principles I'm holding myself to
@@ -21,7 +21,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 2 | Dataset pipeline: Oxford + Commons, domestic and unknown sets, grouped splits | 1: Core | Done (first manifest: 2026-11-22-2e986370) |
 | 3 | Embeddings, baseline heads, calibration, Commons screening | 1: Core | Done |
 | 4 | Open-set score and decision policy | 1: Core | Done (false breed claim rate 0.6% on 174 domestic test cats) |
-| 5 | Detection, person blurring and clip grouping by appearance | 1: Core | In progress (code and tests done; real run pending) |
+| 5 | Detection, person blurring and clip grouping by appearance | 1: Core | Done (photo 0.1 s, 6-frame clip 0.7 s on an RTX 2060) |
 | 6 | Database schema, contracts, API, input limits and hardening | 1: Core | Not started |
 | 7 | Job queue and worker | 1: Core | Not started |
 | 8 | Upload page with evidence panel (Phase 1 gate) | 1: Core | Not started |
@@ -182,7 +182,14 @@ Implementation notes:
 - Breeds are classified on the original pixels; only the copy that would be stored is blurred.
 - Grouping is called ambiguous when a detection is almost equally similar to two groups (within 0.05); the clip then returns per-frame results with the reason.
 - `make analyse FILES="cat.jpg clip.mp4"` loads the latest run, the policy and the detector and prints each answer with its latency.
-- Unit tests use a fake detector and fake embeddings, so CI needs neither torch nor the RF-DETR weights. The real run on my machine still has to record photo and clip latency.
+- RF-DETR scores cat and dog on the same box independently and the top label can flip between frames, so overlapping animal boxes (IoU 0.7 or more) are merged and the species is taken from whichever kNN index (cat or dog) the crop is closest to.
+- Unit tests use a fake detector and fake embeddings, so CI needs neither torch nor the RF-DETR weights.
+
+Results on my machine (RF-DETR base + DINOv2 on an RTX 2060):
+
+- Models load in about 23 s. A photo takes 0.08 to 0.12 s after the first (about 1.2 s with CUDA warm-up).
+- A 6-frame one-cat clip gives one group in 0.71 s (0.12 s per frame); a 6-frame two-cat clip gives two groups in 0.69 s.
+- Known gaps: a cat held in someone's arms can be missed (the person box wins), the blurred copy hides an animal that a person is holding, and rotation metadata still needs a real phone clip to test.
 
 **Step 6. Schema, contracts, API, limits and hardening.**
 
