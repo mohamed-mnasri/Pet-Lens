@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell data data-oxford data-commons data-build install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade data data-oxford data-commons data-build install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -27,6 +27,12 @@ db-down:
 
 db-shell:
 	docker compose exec db psql -U petlens -d petlens
+
+db-migrate:
+	uv run python -m petlens.db upgrade
+
+db-downgrade:
+	uv run python -m petlens.db downgrade
 
 # Dataset pipeline (Step 2). Safe to rerun: only new work is done.
 data: data-oxford data-commons data-build
