@@ -148,12 +148,14 @@ I don't hand-label datasets. Instead, the model does the first pass and I check 
 
 ## Input limits and storage
 
-These limits are enforced at the API before anything is decoded. The full table is in PLAN.md Step 6.
+These limits are enforced at the API, and the full table is in PLAN.md Step 6. Originals are never kept. Every photo and sampled frame is resized and re-encoded on ingest.
 
-- **Photos:** at most 15 MB and 40 megapixels. Stored resized to 1280 px, plus a 448 px crop per animal.
-- **Videos:** at most 250 MB and 3 minutes, decoded at up to 1080p and sampled at 5 fps. Only the 3 sharpest crops per track are kept, and the original is deleted after processing unless it's part of a review batch.
-- **Live camera:** never recorded. At most one crop per track per minute is kept.
-- **Review batches:** at most 200 files. Originals are kept for 30 days, then deleted. Crops and labels stay.
+- **Photos:** uploads up to 15 MB and 40 megapixels. Each one is stored once at 1024 px on the long edge, as WebP at quality 80, capped at 250 KB. There's also a 384 px crop per animal, capped at 40 KB.
+- **Videos:** uploads up to 50 MB and 30 seconds. One frame per second is kept, each stored like a photo. There's no frame-selection logic: it's up to me to upload a short, clean clip showing the whole cat. The clip's answer is the average over its frames.
+- **Live camera:** never recorded. At most one frame every 10 seconds is kept while an animal is in view.
+- **Review batches:** up to 200 files, reviewed from the compressed copies.
+
+At the caps, 100 photos take under 30 MB and a 30-second clip under 9 MB. Typical files should be smaller, probably 100 to 150 KB per photo (an estimate I'll check in Step 6). Without compression, 100 phone photos would be about 1 GB.
 
 ## Pipeline
 
@@ -161,7 +163,7 @@ These limits are enforced at the API before anything is decoded. The full table 
 
 1. fetch
 2. extract
-3. ingest: decode and hash
+3. ingest: decode, hash, then store as 1024 px WebP (same rules as uploads)
 4. normalise labels against `breeds.yaml`
 5. detect and crop
 6. quality checks

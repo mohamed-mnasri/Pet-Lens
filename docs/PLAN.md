@@ -120,20 +120,22 @@ Done when: a video goes in and tracked boxes with per-track top 3 come out, with
 
 **Step 6. Schema, contracts, API.** Alembic migrations for the core tables, Pydantic contracts mirroring them, a dead-letter table for rejected payloads. FastAPI endpoints: `/predict/image`, `/predict/video`, `/runs/{id}`.
 
-Input limits, enforced at the API before anything is decoded or stored (values live in config):
+Input limits and compression, enforced at the API before anything is stored (values live in config). Originals are never kept: every photo and every sampled frame is resized and re-encoded on ingest, and the uploaded file is deleted straight after.
 
-| Input | Limit | What gets stored |
+| Input | Upload limit | What gets stored |
 | --- | --- | --- |
-| Photo | JPEG, PNG or WebP; at most 15 MB and 40 megapixels | A copy resized to 1280 px on the long side (JPEG, quality 90), plus one 448 px crop per detected animal |
-| Video | MP4, MOV or WebM; at most 250 MB and 3 minutes; decoded at up to 1080p | Sampled at 5 fps for detection and tracking; the 3 sharpest 448 px crops per track. The original is deleted after processing unless it is in a review batch |
-| Live camera | No recording | The sharpest crop per track, at most one per track per minute |
-| Review batch | At most 200 files | Originals kept for 30 days for review, then deleted; crops and labels stay |
+| Photo | JPEG, PNG or WebP; at most 15 MB and 40 megapixels | One copy, long edge 1024 px, WebP quality 80, hard cap 250 KB (quality steps down until it fits), plus a 384 px crop per detected animal (WebP, cap 40 KB) |
+| Video | MP4, MOV or WebM; at most 50 MB and 30 seconds | One frame per second (at most 30), each stored like a photo. No tracking or "best frame" logic: I'm responsible for uploading a short, clean clip that shows the whole cat. The clip's prediction is the average over its frames |
+| Live camera | No recording | At most one frame every 10 seconds while an animal is in view, stored like a photo |
+| Review batch | At most 200 files | The compressed copies above; nothing larger is kept for review |
 
-Over-limit files are rejected with a clear message and logged to the dead-letter table, never silently trimmed. `make storage-report` shows usage per folder, and unreviewed media older than the retention window is pruned. Rough budget: a 448 px crop is about 40 KB and a ViT-S embedding is 1.5 KB, so 10,000 reviewed crops come to under 500 MB.
+Over-limit files are rejected with a clear message and logged to the dead-letter table, never silently trimmed. `make storage-report` shows usage per folder.
 
-Done when: every event lands in Postgres, API tests run in CI, and every limit has a test with an over-limit file.
+Expected storage, worst case at the caps: 100 photos come to at most 25 MB for the stored copies plus 4 MB for crops, so under 30 MB. A 30-second clip stores at most 30 frames, under 9 MB. Typical files should be well under the caps (*estimate*: 100 to 150 KB per 1024 px WebP). Embeddings add 1.5 KB per crop (384 float32 values for ViT-S). So 10,000 stored images stay under 3 GB even at the caps.
 
-**Step 7. Live and Upload pages.** Streamlit, camera view with tracked boxes and top-3 cards, upload grid. The upload page shows the limits up front and rejects oversize files before uploading them.
+Done when: every event lands in Postgres, API tests run in CI, every limit has a test with an over-limit file, and a test checks that a 40 MP photo is stored under 250 KB.
+
+**Step 7. Live and Upload pages.** Streamlit, camera view with tracked boxes and top-3 cards, upload grid. The upload page shows the limits up front (photos up to 15 MB, clips up to 30 seconds showing the whole cat) and rejects oversize files before uploading them.
 **Phase 1 gate:** image, video or camera in; calibrated top 3 and a decision out; every event in Postgres; CI green. Tag `v0.2.0`.
 
 ### Phase 2: Data engineering and feedback loop
