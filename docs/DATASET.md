@@ -151,11 +151,11 @@ I don't hand-label datasets. Instead, the model does the first pass and I check 
 These limits are enforced at the API, and the full table is in PLAN.md Step 6. Originals are never kept. Every photo and sampled frame is resized and re-encoded on ingest.
 
 - **Photos:** uploads up to 15 MB and 40 megapixels. Each one is stored once at 1024 px on the long edge, as WebP at quality 80, capped at 250 KB. There's also a 384 px crop per animal, capped at 40 KB.
-- **Videos:** uploads up to 50 MB and 30 seconds. One frame per second is kept, each stored like a photo. There's no frame-selection logic: it's up to me to upload a short, clean clip showing the whole cat. The clip's answer is the average over its frames.
+- **Videos:** uploads up to 25 MB and 10 seconds. A longer clip is rejected with a message to trim it or upload photos instead. One frame per second is kept, each stored like a photo. There's no frame-selection logic: it's up to me to upload a short, clean clip showing the whole cat. The clip's answer is the average over its frames.
 - **Live camera:** never recorded. At most one frame every 10 seconds is kept while an animal is in view.
 - **Review batches:** up to 200 files, reviewed from the compressed copies.
 
-At the caps, 100 photos take under 30 MB and a 30-second clip under 9 MB. Typical files should be smaller, probably 100 to 150 KB per photo (an estimate I'll check in Step 6). Without compression, 100 phone photos would be about 1 GB.
+At the caps, 100 photos take under 30 MB and a 10-second clip under 3 MB. Typical files should be smaller, probably 100 to 150 KB per photo (an estimate I'll check in Step 6). Without compression, 100 phone photos would be about 1 GB.
 
 ## Pipeline
 
