@@ -7,7 +7,9 @@ checksums under ``<DATA_DIR>/manifests/<version>/``.
 Split rules (DATASET.md):
 
 - Every image belongs to a group: near-duplicate clusters (pHash) joined with the
-  Commons uploader. All images of a group land in the same split.
+  Commons photographer. The photographer is the file's author; the uploader is only
+  used when the author is missing or generic, because bulk-transfer accounts (Flickr
+  imports) upload many photographers' work. All images of a group land in the same split.
 - Oxford keeps its official test split as ``test_in_domain``; a test image that is a
   near-duplicate of an Oxford training image, or a Commons image that duplicates an
   Oxford test image, is excluded (a leak).
@@ -129,10 +131,23 @@ def add_phashes(rows: list[ManifestRow], data_dir: Path) -> list[ManifestRow]:
     return out
 
 
+_GENERIC_AUTHORS = {"", "unknown", "unknown author", "anonymous", "anonymous author", "author"}
+
+
+def photographer_key(r: ManifestRow) -> str | None:
+    """Who took the photo: the author when it's meaningful, else the uploader."""
+    author = " ".join((r.author or "").split()).casefold()
+    if author not in _GENERIC_AUTHORS and not author.startswith("unknown"):
+        return f"author:{author}"
+    if r.uploader:
+        return f"uploader:{r.uploader}"
+    return None
+
+
 def assign_groups(
     rows: list[ManifestRow], breeds: BreedCatalog, policy: SplitPolicy
 ) -> list[ManifestRow]:
-    """Mark leaks, then set ``group_id`` from near-duplicate clusters and uploaders."""
+    """Mark leaks, then set ``group_id`` from near-duplicate clusters and photographers."""
     role = {b.id: b.role for b in breeds.breeds}
     pairs = near_duplicate_pairs([r.phash or "0" for r in rows], policy.max_phash_distance)
 
@@ -163,14 +178,15 @@ def assign_groups(
             elif role.get(r.breed) == "unknown" and known:
                 flags[i].append("dup_of_known")
 
-    # Groups: near-duplicate clusters, joined by uploader for non-unknown Commons rows.
+    # Groups: near-duplicate clusters, joined by photographer for non-unknown Commons rows.
     grp = UnionFind(len(rows))
     for i, j in pairs:
         grp.union(i, j)
-    by_uploader: dict[str, int] = {}
+    by_photographer: dict[str, int] = {}
     for i, r in enumerate(rows):
-        if r.uploader and role.get(r.breed) != "unknown":
-            first = by_uploader.setdefault(r.uploader, i)
+        key = photographer_key(r)
+        if key and role.get(r.breed) != "unknown":
+            first = by_photographer.setdefault(key, i)
             grp.union(first, i)
     members_of: dict[int, list[int]] = defaultdict(list)
     for i in range(len(rows)):

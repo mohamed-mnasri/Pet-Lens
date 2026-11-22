@@ -364,6 +364,7 @@ def build_rows(
                     width=stored.width,
                     height=stored.height,
                     uploader=f.uploader,
+                    author=f.author,
                     flags=list(stored.flags),
                 )
             )

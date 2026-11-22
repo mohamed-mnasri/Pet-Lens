@@ -48,6 +48,7 @@ class Fixture:
         brighten: float = 1.0,
         source_split: str | None = None,
         uploader: str | None = None,
+        author: str | None = None,
         species: str = "cat",
     ) -> str:
         stored = store_image(_photo(seed, brighten), self.images)
@@ -65,6 +66,7 @@ class Fixture:
                 height=stored.height,
                 source_split=source_split,
                 uploader=uploader,
+                author=author,
             )
         )
         return stored.image_id
@@ -201,3 +203,29 @@ def test_existing_assignments_never_move(tmp_path: Path) -> None:
 def test_needs_sources(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="make data-oxford"):
         dataset.build(tmp_path, BREEDS, repo_data_dir=tmp_path / "repo")
+
+
+def test_bulk_uploader_is_split_by_author(tmp_path: Path) -> None:
+    fx = Fixture(tmp_path)
+    _populate(fx)
+    # One transfer account uploads two photographers' work; generic authors fall back.
+    for k in range(3):
+        fx.add(
+            "commons", f"File:alice_{k}.jpg", "persian", 8000 + k, uploader="bot", author="Alice"
+        )
+        fx.add("commons", f"File:bob_{k}.jpg", "bengal", 8100 + k, uploader="bot", author="Bob B.")
+        fx.add(
+            "commons",
+            f"File:anon_{k}.jpg",
+            "persian",
+            8200 + k,
+            uploader="bot",
+            author="Unknown author",
+        )
+    rows = _by_ref(fx.build().manifest)
+    groups = {
+        who: {rows[f"File:{who}_{k}.jpg"].group_id for k in range(3)}
+        for who in ("alice", "bob", "anon")
+    }
+    assert all(len(g) == 1 for g in groups.values())
+    assert len(set().union(*groups.values())) == 3
