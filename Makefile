@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell data data-oxford data-commons data-build
+.PHONY: install lint format types test test-db check db-up db-down db-shell data data-oxford data-commons data-build install-ml embed train
 
 install:
 	uv sync
@@ -39,3 +39,13 @@ data-commons:
 
 data-build:
 	uv run python -m petlens.data build
+
+# Step 3: embeddings and baseline heads. Needs the optional ML packages (torch, timm).
+install-ml:
+	uv sync --extra ml
+
+embed:
+	uv run --extra ml python -m petlens.models embed
+
+train:
+	uv run python -m petlens.models train

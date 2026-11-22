@@ -19,7 +19,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | --- | --- | --- | --- |
 | 1 | Local setup and repo skeleton | 1: Core | In review |
 | 2 | Dataset pipeline: Oxford + Commons, domestic and unknown sets, grouped splits | 1: Core | Done (first committed manifest still to generate) |
-| 3 | Embeddings, baseline heads, calibration, Commons screening | 1: Core | Not started |
+| 3 | Embeddings, baseline heads, calibration, Commons screening | 1: Core | In progress (3a done) |
 | 4 | Open-set score and decision policy | 1: Core | Not started |
 | 5 | Detection, person blurring and clip grouping by appearance | 1: Core | Not started |
 | 6 | Database schema, contracts, API, input limits and hardening | 1: Core | Not started |
@@ -136,6 +136,15 @@ Done when: `make data` reruns with no changes, a test proves no group crosses sp
 - Per-species heads: 12 cat breeds plus `domestic_cat`, and 25 dog breeds. Logistic regression first, then a small MLP, picked on validation macro-F1.
 - Temperature scaling on the calibration split.
 - **Screening.** v0 trains on Oxford plus the domestic set, then screens the Commons candidates. If its top-1 matches the category, the image joins the training pool. If not, it goes to my swipe queue in Step 9. A random 5% of the matches also go to review, so I can measure how noisy the agreed labels are.
+
+Step 3 lands in two parts:
+
+| Part | Scope | Status |
+| --- | --- | --- |
+| 3a | DINOv2 ViT-S/14 embeddings via `timm` (crop from the box with a 10% margin, padded square, 224 px, fp16 on the GPU, cached and resumable), logistic regression vs MLP heads per species picked on validation macro-F1, temperature scaling, metrics per test set before and after calibration, learning curve, run saved with weights hash. `make install-ml`, `make embed`, `make train` | Done |
+| 3b | DINOv2 near-duplicate leak check, Commons screening (top-1 agreement plus a 5% sample to review), retrain with the admitted Commons images | Not started |
+
+Torch and timm are an optional extra (`ml`), so CI and the data pipeline don't install them.
 
 Done when: top-1, top-3, macro-F1 and ECE before and after calibration are recorded on the in-domain, unseen-source and domestic test sets, and a learning curve (25 / 50 / 100% of training data) is plotted.
 
