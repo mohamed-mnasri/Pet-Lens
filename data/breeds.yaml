@@ -1,0 +1,66 @@
+# Label catalogue for PetLens. Every label the pipeline uses must be listed here.
+#
+# role:
+#   train    - a class the per-species head is trained on
+#   unknown  - a real breed kept out of training, used only for the unknown-breed test
+#
+# oxford_label: the breed prefix used in Oxford-IIIT Pet file names, if the breed is in Oxford.
+# commons_categories: Wikimedia Commons categories used as weak labels (cats only for now).
+
+breeds:
+  # Cats: the 12 Oxford breeds
+  - {id: abyssinian, name: Abyssinian, species: cat, role: train, oxford_label: Abyssinian, commons_categories: [Abyssinian cats]}
+  - {id: bengal, name: Bengal, species: cat, role: train, oxford_label: Bengal, commons_categories: [Bengal cats]}
+  - {id: birman, name: Birman, species: cat, role: train, oxford_label: Birman, commons_categories: [Birman cats]}
+  - {id: bombay, name: Bombay, species: cat, role: train, oxford_label: Bombay, commons_categories: [Bombay cats]}
+  - {id: british_shorthair, name: British Shorthair, species: cat, role: train, oxford_label: British_Shorthair, commons_categories: [British Shorthair cats]}
+  - {id: egyptian_mau, name: Egyptian Mau, species: cat, role: train, oxford_label: Egyptian_Mau, commons_categories: [Egyptian Mau]}
+  - {id: maine_coon, name: Maine Coon, species: cat, role: train, oxford_label: Maine_Coon, commons_categories: [Maine Coon cats]}
+  - {id: persian, name: Persian, species: cat, role: train, oxford_label: Persian, commons_categories: [Persian cats]}
+  - {id: ragdoll, name: Ragdoll, species: cat, role: train, oxford_label: Ragdoll, commons_categories: [Ragdoll cats]}
+  - {id: russian_blue, name: Russian Blue, species: cat, role: train, oxford_label: Russian_Blue, commons_categories: [Russian Blue cats]}
+  - {id: siamese, name: Siamese, species: cat, role: train, oxford_label: Siamese, commons_categories: [Siamese cats]}
+  - {id: sphynx, name: Sphynx, species: cat, role: train, oxford_label: Sphynx, commons_categories: [Sphynx (cat)]}
+
+  # Cats: the domestic class (no breed), trained from day one
+  - {id: domestic_cat, name: Domestic cat (no clear breed), species: cat, role: train, commons_categories: [Domestic short-haired cats, Domestic long-haired cats]}
+
+  # Cats: breeds Oxford doesn't have, kept for the unknown-breed test
+  - {id: norwegian_forest_cat, name: Norwegian Forest Cat, species: cat, role: unknown, commons_categories: [Norwegian Forest Cats]}
+  - {id: scottish_fold, name: Scottish Fold, species: cat, role: unknown, commons_categories: [Scottish Fold cats]}
+  - {id: devon_rex, name: Devon Rex, species: cat, role: unknown, commons_categories: [Devon Rex]}
+  - {id: exotic_shorthair, name: Exotic Shorthair, species: cat, role: unknown, commons_categories: [Exotic Shorthair cats]}
+
+  # Dogs: the 25 Oxford breeds
+  - {id: american_bulldog, name: American Bulldog, species: dog, role: train, oxford_label: american_bulldog}
+  - {id: american_pit_bull_terrier, name: American Pit Bull Terrier, species: dog, role: train, oxford_label: american_pit_bull_terrier}
+  - {id: basset_hound, name: Basset Hound, species: dog, role: train, oxford_label: basset_hound}
+  - {id: beagle, name: Beagle, species: dog, role: train, oxford_label: beagle}
+  - {id: boxer, name: Boxer, species: dog, role: train, oxford_label: boxer}
+  - {id: chihuahua, name: Chihuahua, species: dog, role: train, oxford_label: chihuahua}
+  - {id: english_cocker_spaniel, name: English Cocker Spaniel, species: dog, role: train, oxford_label: english_cocker_spaniel}
+  - {id: english_setter, name: English Setter, species: dog, role: train, oxford_label: english_setter}
+  - {id: german_shorthaired, name: German Shorthaired Pointer, species: dog, role: train, oxford_label: german_shorthaired}
+  - {id: great_pyrenees, name: Great Pyrenees, species: dog, role: train, oxford_label: great_pyrenees}
+  - {id: havanese, name: Havanese, species: dog, role: train, oxford_label: havanese}
+  - {id: japanese_chin, name: Japanese Chin, species: dog, role: train, oxford_label: japanese_chin}
+  - {id: keeshond, name: Keeshond, species: dog, role: train, oxford_label: keeshond}
+  - {id: leonberger, name: Leonberger, species: dog, role: train, oxford_label: leonberger}
+  - {id: miniature_pinscher, name: Miniature Pinscher, species: dog, role: train, oxford_label: miniature_pinscher}
+  - {id: newfoundland, name: Newfoundland, species: dog, role: train, oxford_label: newfoundland}
+  - {id: pomeranian, name: Pomeranian, species: dog, role: train, oxford_label: pomeranian}
+  - {id: pug, name: Pug, species: dog, role: train, oxford_label: pug}
+  - {id: saint_bernard, name: Saint Bernard, species: dog, role: train, oxford_label: saint_bernard}
+  - {id: samoyed, name: Samoyed, species: dog, role: train, oxford_label: samoyed}
+  - {id: scottish_terrier, name: Scottish Terrier, species: dog, role: train, oxford_label: scottish_terrier}
+  - {id: shiba_inu, name: Shiba Inu, species: dog, role: train, oxford_label: shiba_inu}
+  - {id: staffordshire_bull_terrier, name: Staffordshire Bull Terrier, species: dog, role: train, oxford_label: staffordshire_bull_terrier}
+  - {id: wheaten_terrier, name: Soft-coated Wheaten Terrier, species: dog, role: train, oxford_label: wheaten_terrier}
+  - {id: yorkshire_terrier, name: Yorkshire Terrier, species: dog, role: train, oxford_label: yorkshire_terrier}
+
+# Pairs the UI names together when their scores are close (DATASET.md).
+close_pairs:
+  - [bengal, egyptian_mau]
+  - [birman, ragdoll]
+  - [british_shorthair, russian_blue]
+  - [american_pit_bull_terrier, staffordshire_bull_terrier]

@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     database_url: str = "postgresql+psycopg://petlens:petlens@localhost:5432/petlens"
-    data_dir: Path = Path("data")
+    # Datasets, weights and footage. Set DATA_DIR in .env (D:/petlens-data on my machine).
+    data_dir: Path = Path(".petlens-data")
 
     @property
     def raw_dir(self) -> Path:

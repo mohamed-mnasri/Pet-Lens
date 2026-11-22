@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell
+.PHONY: install lint format types test test-db check db-up db-down db-shell data data-oxford
 
 install:
 	uv sync
@@ -27,3 +27,9 @@ db-down:
 
 db-shell:
 	docker compose exec db psql -U petlens -d petlens
+
+# Dataset pipeline (Step 2). Safe to rerun: only new work is done.
+data: data-oxford
+
+data-oxford:
+	uv run python -m petlens.data oxford

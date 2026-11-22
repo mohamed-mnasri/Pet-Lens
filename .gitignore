@@ -15,7 +15,10 @@ htmlcov/
 .env
 
 # Data, weights and footage live outside the repo (D:\petlens-data)
-/data/
+/.petlens-data/
+/data/*
+!/data/*.yaml
+!/data/manifests/
 *.parquet
 *.onnx
 *.pt

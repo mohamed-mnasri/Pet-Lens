@@ -1,0 +1,32 @@
+# Where training and test images come from. Images themselves never go into the repo.
+
+sources:
+  oxford:
+    name: Oxford-IIIT Pet
+    version: "2012"
+    homepage: https://www.robots.ox.ac.uk/~vgg/data/pets/
+    licence: CC BY-SA 4.0
+    attribution: >-
+      Oxford-IIIT Pet Dataset, O. M. Parkhi, A. Vedaldi, A. Zisserman, C. V. Jawahar (2012),
+      CC BY-SA 4.0. Image copyright remains with the original owners.
+    files:
+      # MD5s are the ones published with torchvision's OxfordIIITPet loader.
+      - name: images.tar.gz
+        md5: 5c4f3ee8e5d25df40f4fd59a7f44e54c
+        urls:
+          - https://thor.robots.ox.ac.uk/datasets/pets/images.tar.gz
+          - https://www.robots.ox.ac.uk/~vgg/data/pets/data/images.tar.gz
+      - name: annotations.tar.gz
+        md5: 95a8c909bbe2e81eed6a22bccdf3f68f
+        urls:
+          - https://thor.robots.ox.ac.uk/datasets/pets/annotations.tar.gz
+          - https://www.robots.ox.ac.uk/~vgg/data/pets/data/annotations.tar.gz
+
+  commons:
+    name: Wikimedia Commons
+    version: live
+    homepage: https://commons.wikimedia.org/
+    licence: per file
+    attribution: Per file, from the Commons file page (author, licence, URL).
+    # Fetched in Step 2 part 2. Anything not on this list is skipped.
+    licence_allowlist: [CC0, Public domain, CC BY, CC BY-SA]
