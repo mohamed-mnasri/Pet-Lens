@@ -20,7 +20,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 1 | Local setup and repo skeleton | 1: Core | In review |
 | 2 | Dataset pipeline: Oxford + Commons, domestic and unknown sets, grouped splits | 1: Core | Done (first manifest: 2026-11-22-2e986370) |
 | 3 | Embeddings, baseline heads, calibration, Commons screening | 1: Core | In progress (3a done) |
-| 4 | Open-set score and decision policy | 1: Core | Not started |
+| 4 | Open-set score and decision policy | 1: Core | In progress (code done, first tuned run pending) |
 | 5 | Detection, person blurring and clip grouping by appearance | 1: Core | Not started |
 | 6 | Database schema, contracts, API, input limits and hardening | 1: Core | Not started |
 | 7 | Job queue and worker | 1: Core | Not started |
@@ -154,6 +154,12 @@ Done when: top-1, top-3, macro-F1 and ECE before and after calibration are recor
 - **Decision policy:** accept, domestic / no clear breed, or review. It lives in plain config.
 - **Thresholds:** tuned on the real-world calibration slice, not on in-domain data.
 - **Close pairs** show both names when their scores are close.
+
+Implementation notes:
+
+- The kNN index is in memory for now (`petlens.models.openset`), with the interface the pgvector version will have in Step 6, because Postgres isn't running on my machine yet.
+- Outcomes are `accept`, `no_clear_breed` (for cats, "domestic cat, no clear breed") and `review` (far from anything in training).
+- `make train` tunes the thresholds on `rw_calibration` (cats) or the calibration split (dogs, which have no real-world slice yet) and writes them to `data/policy.yaml`. Tuning maximises accepted answers while keeping accepted answers at 90% accuracy and the false breed claim rate at 10% or lower.
 
 Done when:
 

@@ -83,8 +83,14 @@ def test_train_end_to_end_on_synthetic_embeddings() -> None:
     assert cat["tests"]["test_in_domain"]["calibrated"]["top1"] > 0.9
     assert cat["domestic_test_called_a_breed"] < 0.5
     assert [p["fraction"] for p in cat["learning_curve"]] == [0.25, 0.5, 1.0]
+    pol = cat["policy"]
+    assert pol["tuned_on"] == "calibration"  # no real-world slice in this fixture
+    assert 0 <= pol["test_domestic"]["false_breed_claim_rate"] <= 1
+    assert {"coverage", "selective_accuracy"} <= set(pol["test_in_domain"])
+    assert "policy_config" in metrics
     report = train.render_report("run", "v1", "fake", metrics)
     assert "| test_in_domain |" in report and "Learning curve" in report
+    assert "False breed claim rate on domestic cats" in report
 
 
 def test_crop_for_model_uses_box_and_pads_square() -> None:

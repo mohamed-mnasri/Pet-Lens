@@ -8,7 +8,7 @@ import logging
 from petlens.config import get_settings
 from petlens.data.catalog import REPO_DATA_DIR, load_breeds
 from petlens.data.manifest import read_manifest
-from petlens.models import embed, screening, train
+from petlens.models import embed, policy, screening, train
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -53,7 +53,12 @@ def main(argv: list[str] | None = None) -> None:
         admitted = (
             screening.admitted(screening.read(screen_path)) if screen_path.exists() else frozenset()
         )
-        heads, metrics = train.train(rows, vecs, load_breeds(), admitted=admitted)
+        policy_path = REPO_DATA_DIR / "policy.yaml"
+        base = policy.load(policy_path) if policy_path.exists() else policy.PolicyConfig()
+        heads, metrics = train.train(rows, vecs, load_breeds(), admitted=admitted, base_policy=base)
+        tuned = policy.PolicyConfig.model_validate(metrics["policy_config"])
+        tuned.tuned_on = f"{tuned.tuned_on}; dataset {version}"
+        policy.save(tuned, policy_path)
         run = train.save_run(settings.models_dir, version, model, heads, metrics)
         print((run / "report.md").read_text(encoding="utf-8"))
 
