@@ -1,76 +1,75 @@
 # PetLens
 
-**A fully local pet breed recognition system with an AI auditor that checks its work, and pet profiles that learn each individual animal.**
+**A fully local pet breed recognition system that knows when it doesn't know, and learns from a fast human review loop.**
 
-> Status: **pre-alpha.** This README describes the intended design. Step 1 (repo skeleton) is in progress; see [docs/PLAN.md](docs/PLAN.md) for the build plan and current status. Sections will be updated with real results as each phase lands.
+> Status: **pre-alpha.** This README describes the intended design. Step 1 (repo skeleton) is in progress; see [docs/PLAN.md](docs/PLAN.md) for the build plan and [docs/SPEC.md](docs/SPEC.md) for the full design. Sections will be updated with real results as each phase lands.
 
 ---
 
 ## What it does
 
-PetLens takes a **PC camera feed, an uploaded video or an uploaded picture**, finds the cats and dogs in it, and suggests their most likely breeds with honest, calibrated confidence. It never claims to *identify* a breed: it says what an animal *looks most like*, and answers "unknown or mixed breed" when it isn't sure.
+PetLens takes an **uploaded photo or short video** (and later a **PC camera feed**), finds the cats and dogs in it, and suggests the breed each one *looks most like*, with honest, calibrated confidence. It never claims to *identify* a breed. Most cats have no breed, so "domestic cat, no clear breed" is a trained answer, not a failure.
 
-What makes it different from a typical image classifier is what happens after the prediction:
+What makes it more than a typical image classifier is what happens around the prediction:
 
-- **AI auditor.** A second local AI model independently re-checks predictions. When the two disagree, a human decides. Dashboards score both AIs against human labels and answer one question with data: *does an AI auditor catch more mistakes than a simple confidence threshold?*
-- **Pet profiles.** PetLens recognises the same animal across camera sessions and uploads, and builds a profile per pet: photos, sightings, consensus breed and how consistently the model agrees with itself.
-- **Measured improvement.** Every confirmed label feeds evaluation and retraining. A new model is only promoted if it beats the current one on a blind, random audit sample.
+- **Evidence, not just a label.** Every answer shows the training images it looks most like, and close breed pairs are shown side by side.
+- **A swipe review loop.** I swipe predictions right or wrong. Only reviewed labels feed the next dataset version, and every label keeps its origin.
+- **Measured improvement.** A new model is only promoted if a paired test shows it beats the current one on data from sources it has never seen, without claiming more breeds for ordinary cats.
+- **A local vision-language model with a narrow, measured job.** It screens images (real photo or drawing, whole animal visible, kitten, blurry), and its tags are scored against my reviews.
+- **Pet profiles.** PetLens recognises my own pets across uploads by appearance.
 
 Everything runs on one laptop. **No cloud services, no paid APIs, €0 to build and run.**
 
 ## Planned architecture
 
 ```
-PC camera / video / photo
-        │
+Photo / 10 s clip (Upload)                Webcam (Live, Phase 4)
+        │                                         │
+        ▼                                         ▼
+FastAPI ingest: limits, signature check, 1024 px WebP ── rejects to dead-letter
+        │                                 │
+        │ single files                    │ batches ──► Postgres job queue ──► worker
+        ▼                                 ▼
+Detect (RF-DETR) ── people blurred ── DINOv2 embedding ── per-species head
+        │                    kNN open-set score + evidence (pgvector)
         ▼
-Detect + track (RF-DETR, ByteTrack) ── people blurred
-        │
-        ▼
-Embed + classify (DINOv2 + fine-tuned head) ── calibrated, abstains on unknown breeds
-        │
-        ▼
-FastAPI ingest (Pydantic contracts) ──► PostgreSQL + pgvector
-                                              │
-            ┌─────────────────┬───────────────┼───────────────────┐
-            ▼                 ▼               ▼                   ▼
-     AI auditor          Pet profiles     dbt Core marts      Retrain + promote
-  (qwen3-vl:4b via      (re-ID, SCD2      (accuracy,          (golden set +
-   Ollama, batch)        identities)       calibration,        blind audit)
-                                           auditor scorecard)
-                                              │
-                                              ▼
-                     Streamlit UI: Live · Upload · Review · Pets · Model Health
+PostgreSQL 16 + pgvector ──┬── Swipe review ──► append-only label events
+                           ├── Evaluation (Python) + dbt Core marts
+                           ├── VLM screener (qwen3-vl:4b via Ollama, batch)
+                           └── Registry + paired promotion gate
+                                        │
+                                        ▼
+        Streamlit UI: Upload · Review · Pets · Model Health · Data · Live
 ```
 
 ## Planned stack
 
 | Layer | Technology |
 | --- | --- |
-| Detection + tracking | RF-DETR (Apache 2.0 sizes), `supervision` ByteTrack |
-| Classification | DINOv2 ViT-S/14 → fine-tuned head, PyTorch (CUDA, fp16), ONNX Runtime |
-| Local LLM / VLM | Ollama with `qwen3-vl:4b` (local models only, never `-cloud` tags) |
+| Detection | RF-DETR (Apache 2.0 sizes) |
+| Classification | DINOv2 ViT-S/14 and ViT-B/14, linear / MLP heads, partial fine-tuning, PyTorch (CUDA, fp16) |
+| Image and video | Pillow (WebP), PyAV, ffprobe |
+| Local VLM | Ollama with `qwen3-vl:4b` (local models only, never `-cloud` tags) |
 | API | FastAPI, Pydantic v2 |
-| Storage | PostgreSQL 16 + pgvector, SQLAlchemy, Alembic |
-| Transformation | dbt Core + dbt-postgres |
+| Storage | PostgreSQL 16 + pgvector, SQLAlchemy, Alembic, Postgres-backed job queue |
+| Transformation | dbt Core + dbt-postgres (incremental models, snapshots, contracts) |
 | UI | Streamlit |
-| ML extras | scikit-learn (error predictor), temperature scaling |
 | Quality | pytest, Ruff, mypy, pre-commit, GitHub Actions |
 
 ## Data
 
 - **Training:** [Oxford-IIIT Pet Dataset](https://www.robots.ox.ac.uk/~vgg/data/pets/): 37 breeds (12 cat, 25 dog), CC BY-SA 4.0. Downloaded by script; images are **not** committed to this repo.
-- **Expansion:** [Wikimedia Commons](https://commons.wikimedia.org/) breed categories, fetched through the API. Only CC0, public domain, CC BY and CC BY-SA files are used, with author and licence recorded per file. Not committed either.
-- **Real-world testing and review:** my own photos and videos, checked through the human-in-the-loop review page.
+- **Expansion:** [Wikimedia Commons](https://commons.wikimedia.org/) cat breed and domestic-cat categories, fetched through the API. Only CC0, public domain, CC BY and CC BY-SA files are used, with author and licence recorded per file. Not committed either.
+- **Real-world testing and review:** my own photos and videos, checked through the swipe review app.
 
 The reasoning, numbers and sources are in [docs/DATASET.md](docs/DATASET.md).
 
 ## Roadmap
 
-- [ ] **Phase 1 — Core:** data pipeline, embeddings + classifier, detection + tracking, Postgres schema, FastAPI, Live page
-- [ ] **Phase 2 — Data engineering:** review queue with blind audit, dbt evaluation marts, model registry + promotion gate, CI
-- [ ] **Phase 3 — After dbt:** AI auditor (scorecard, error predictor, prompt evals) and pet profiles (re-ID, profile pages, fact-checked LLM profile cards)
-- [ ] **Phase 4 — Presentation:** one-command setup, architecture docs, ADRs, demo video
+- [ ] **Phase 1: Core.** Data pipeline, classifier with domestic class and open-set check, detection and clip grouping, Postgres schema, API, job queue, Upload page
+- [ ] **Phase 2: Data engineering and feedback loop.** Swipe review with blind audit, evaluation and dbt marts, model registry and promotion gate, fine-tuning
+- [ ] **Phase 3: VLM and pets.** VLM image screener, breed-naming experiment, pet profiles
+- [ ] **Phase 4: Live and presentation.** Live camera, one-command demo, model and dataset cards, ADRs, demo video
 
 ## Development setup
 
@@ -89,7 +88,7 @@ The DB smoke test runs only when `DATABASE_URL` is set in the environment.
 
 ## Responsible use
 
-Breed identification from a photo is inherently uncertain, even for experts. Most real pets are mixed breed, and the training data covers only 37 pedigree breeds. PetLens shows top-3 suggestions with calibrated probabilities, abstains when unsure, and should **not** be used for adoption, legal, veterinary or insurance decisions.
+Breed identification from a photo is inherently uncertain, even for experts. Most real pets are mixed breed, and the model covers only 12 pedigree cat breeds plus domestic cats, and 25 dog breeds. PetLens shows top-3 suggestions with calibrated probabilities, abstains when unsure, and should **not** be used for adoption, legal, veterinary or insurance decisions.
 
 ## Licence
 
