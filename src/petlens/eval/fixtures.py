@@ -22,7 +22,9 @@ from petlens.models import golden, policy, train
 DBT_SCHEMAS = ("analytics", "staging", "intermediate", "marts", "snapshots")
 
 
-def synthetic_rows(seed: int = 1) -> tuple[list[ManifestRow], dict[str, np.ndarray]]:
+def synthetic_rows(
+    seed: int = 1, noise: float = 1.0
+) -> tuple[list[ManifestRow], dict[str, np.ndarray]]:
     breeds = load_breeds()
     rng = np.random.default_rng(seed)
     rows: list[ManifestRow] = []
@@ -52,7 +54,7 @@ def synthetic_rows(seed: int = 1) -> tuple[list[ManifestRow], dict[str, np.ndarr
                         flags=["blurry"] if i % 7 == 0 else [],
                     )
                 )
-                emb[image_id] = (centre + rng.normal(size=16)).astype(np.float32)
+                emb[image_id] = (centre + noise * rng.normal(size=16)).astype(np.float32)
     return rows, emb
 
 

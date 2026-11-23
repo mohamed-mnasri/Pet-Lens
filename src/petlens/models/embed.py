@@ -59,13 +59,44 @@ def crop_for_model(
     return square.resize((size, size), Image.Resampling.BICUBIC)
 
 
-def load_dinov2(model_name: str = DEFAULT_MODEL, device: str | None = None) -> EmbedFn:
-    """Return a function mapping a batch of 224 px RGB images to L2-normalised embeddings."""
+FINETUNED_PREFIX = "ft-"
+
+
+def finetuned_dir(model_name: str, models_dir: Path | None = None) -> Path | None:
+    """Folder of a fine-tuned backbone (Step 12), or None for a stock timm model."""
+    if not model_name.startswith(FINETUNED_PREFIX):
+        return None
+    if models_dir is None:
+        from petlens.config import get_settings
+
+        models_dir = get_settings().models_dir
+    return models_dir / "finetune" / model_name
+
+
+def create_backbone(model_name: str, models_dir: Path | None = None) -> Any:
+    """A timm DINOv2 backbone with no classifier: stock weights, or a fine-tuned copy."""
+    import json
+
     import timm
     import torch
 
+    ft = finetuned_dir(model_name, models_dir)
+    if ft is None:
+        return timm.create_model(model_name, pretrained=True, num_classes=0, img_size=IMAGE_SIZE)
+    base = json.loads((ft / "config.json").read_text(encoding="utf-8"))["base"]
+    model: Any = timm.create_model(base, pretrained=False, num_classes=0, img_size=IMAGE_SIZE)
+    model.load_state_dict(torch.load(ft / "backbone.pt", map_location="cpu", weights_only=True))
+    return model
+
+
+def load_dinov2(
+    model_name: str = DEFAULT_MODEL, device: str | None = None, models_dir: Path | None = None
+) -> EmbedFn:
+    """Return a function mapping a batch of 224 px RGB images to L2-normalised embeddings."""
+    import torch
+
     dev = device or ("cuda" if torch.cuda.is_available() else "cpu")
-    model: Any = timm.create_model(model_name, pretrained=True, num_classes=0, img_size=IMAGE_SIZE)
+    model: Any = create_backbone(model_name, models_dir)
     model.eval().to(dev)
     mean = torch.tensor(MEAN, device=dev).view(1, 3, 1, 1)
     std = torch.tensor(STD, device=dev).view(1, 3, 1, 1)

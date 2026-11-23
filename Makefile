@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt golden register gate promote registry install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt golden register gate promote registry finetune ablation regression-update install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -101,14 +101,34 @@ data-quality:
 install-ml:
 	uv sync --extra ml
 
+# MODEL picks another frozen backbone, e.g. make embed MODEL=vit_base_patch14_dinov2.lvd142m
+MODEL ?= vit_small_patch14_dinov2.lvd142m
+
 embed:
-	uv run --extra ml python -m petlens.models embed
+	uv run --extra ml python -m petlens.models embed --model $(MODEL)
 
 screen:
 	uv run python -m petlens.models screen
 
 train:
-	uv run python -m petlens.models train
+	uv run python -m petlens.models train --model $(MODEL)
+
+# Step 12: tune the last BLOCKS blocks of BASE (fp16), then embed and train heads on it.
+BASE ?= vit_small_patch14_dinov2.lvd142m
+BLOCKS ?= 2
+EPOCHS ?= 6
+BATCH ?= 32
+finetune:
+	uv run --extra ml python -m petlens.models finetune --base $(BASE) --blocks $(BLOCKS) --epochs $(EPOCHS) --batch-size $(BATCH)
+
+# Every backbone tried on the latest dataset version, judged by the promotion gate.
+ablation:
+	uv run python -m petlens.models ablation
+
+# Refresh the regression gate's stored metrics after an intended change to training.
+regression-update: export PETLENS_UPDATE_REGRESSION=1
+regression-update:
+	uv run pytest tests/test_finetune.py -k reproduces
 
 # Step 11: freeze the golden set once, record runs, and promote a run only if it beats
 # the champion (paired bootstrap on the golden set and the unseen-source test).

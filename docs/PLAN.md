@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 12. Fine-tuning ablations
+**Current step:** 13. VLM image screener
 **Last updated:** 2026-11-23
 
 ## Principles I'm holding myself to
@@ -28,7 +28,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 9 | Swipe review app, blind audit and reviewer checks | 2: Data engineering | Done in code (waiting on my first 50+ reviews) |
 | 10 | Evaluation module and dbt marts | 2: Data engineering | Done (`dbt build` runs in CI on fixtures) |
 | 11 | Model registry, golden set and promotion gate | 2: Data engineering | Done in code |
-| 12 | Fine-tuning ablations (Phase 2 gate) | 2: Data engineering | Not started |
+| 12 | Fine-tuning ablations (Phase 2 gate) | 2: Data engineering | Done in code (Phase 2 gate waits on 300+ reviews) |
 | 13 | VLM image screener | 3: VLM and pets | Not started |
 | 14 | VLM breed-naming experiment | 3: VLM and pets | Not started |
 | 15 | Pet profiles (Phase 3 gate) | 3: VLM and pets | Not started |
@@ -336,6 +336,13 @@ Implementation notes:
 - First, frozen ViT-S against ViT-S with the last blocks unfrozen (fp16), on the same splits and seed.
 - Then ViT-B/14 with the same protocol.
 - A CI regression gate checks that a tiny fixture model reproduces its stored metrics.
+
+Implementation notes:
+
+- 12a (tuning): `make finetune BLOCKS=2` tunes one DINOv2 backbone for both species with a joint linear layer over every class: the last 2 blocks and the final norm train (backbone learning rate 2e-5, head 1e-3, AdamW, warmup then cosine, label smoothing 0.1, balanced class weights), the rest stays frozen and keeps no activations, fp16 with a gradient scaler, batch 32 on the RTX 2060. Same training pool, splits and seed as the frozen baseline, golden photos left out. Augmentation: random resized crop, flip, rotation up to 10 degrees, brightness and contrast only (no hue or greyscale: coat colour is a breed cue), webcam-style downscale and JPEG, random erasing. The epoch with the best validation balanced accuracy is kept (stop after 2 epochs without a gain). Time, peak GPU memory and the per-epoch history go into the run.
+- 12b (into the pipeline): the tuned backbone is saved under `D:\petlens-data\models\finetune\ft-<base>-last<N>-<version>` and becomes an embedding model of its own: every photo is embedded with it and the usual heads, temperature and policy are trained on top. So a tuned run is evaluated, registered and gated like any other, and the API can serve it. `make embed MODEL=vit_base_patch14_dinov2.lvd142m` and `make train MODEL=...` give the frozen ViT-B/14 run; `make finetune BASE=vit_base_patch14_dinov2.lvd142m BATCH=16` the tuned one.
+- 12c (report): `make ablation` puts the latest run of each backbone on the current dataset version side by side (Oxford and unseen-source top-1, false breed claims, unknown rejection, tuning time, GPU peak) and runs the promotion gate of each against frozen ViT-S. The winner is the best golden-set gain among runs that pass every check, not the best in-domain number. The report is written to `docs/results/ablation-<version>.md`.
+- 12d (regression gate): `tests/test_finetune.py` trains the heads on the fixed synthetic fixture (harder noise, so numbers can move) and fails CI if any stored metric in `tests/data/regression_metrics.json` moves by more than 0.02. `make regression-update` refreshes them after an intended change.
 
 **Phase 2 gate:** after 300+ reviews, v2 beats v1 under the paired test, shown from dbt. Tag `v0.3.0` and make the repo public.
 
