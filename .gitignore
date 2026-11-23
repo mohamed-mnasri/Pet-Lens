@@ -48,3 +48,11 @@ Thumbs.db
 /dbt/logs/
 /dbt/dbt_packages/
 /dbt/.user.yml
+
+# Personal writing that never goes to GitHub: demo video script, LinkedIn article, notes
+private/
+demo-script*
+*demo*script*.md
+*linkedin*
+*article*.md
+*.docx
