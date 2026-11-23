@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt golden register gate promote registry install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -109,6 +109,23 @@ screen:
 
 train:
 	uv run python -m petlens.models train
+
+# Step 11: freeze the golden set once, record runs, and promote a run only if it beats
+# the champion (paired bootstrap on the golden set and the unseen-source test).
+golden:
+	uv run python -m petlens.models golden
+
+register:
+	uv run python -m petlens.models register
+
+gate:
+	uv run python -m petlens.models gate
+
+promote:
+	uv run python -m petlens.models promote
+
+registry:
+	uv run python -m petlens.models registry
 
 # Look-alike breeds (Ragdoll / Birman, ...) in the last two training runs: before and after.
 compare:

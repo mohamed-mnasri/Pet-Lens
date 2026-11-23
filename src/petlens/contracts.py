@@ -149,6 +149,8 @@ class ModelRegistry(Contract):
     config: dict[str, Any]
     metrics: dict[str, Any]
     champion: bool
+    gate: dict[str, Any] | None = None
+    promoted_at: datetime | None = None
     created_at: datetime
 
 

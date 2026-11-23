@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 11. Model registry, golden set and promotion gate
+**Current step:** 12. Fine-tuning ablations
 **Last updated:** 2026-11-23
 
 ## Principles I'm holding myself to
@@ -27,7 +27,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 8 | Upload page with evidence panel (Phase 1 gate) | 1: Core | Done (tag v0.2.0 after merging to main) |
 | 9 | Swipe review app, blind audit and reviewer checks | 2: Data engineering | Done in code (waiting on my first 50+ reviews) |
 | 10 | Evaluation module and dbt marts | 2: Data engineering | Done (`dbt build` runs in CI on fixtures) |
-| 11 | Model registry, golden set and promotion gate | 2: Data engineering | Not started |
+| 11 | Model registry, golden set and promotion gate | 2: Data engineering | Done in code |
 | 12 | Fine-tuning ablations (Phase 2 gate) | 2: Data engineering | Not started |
 | 13 | VLM image screener | 3: VLM and pets | Not started |
 | 14 | VLM breed-naming experiment | 3: VLM and pets | Not started |
@@ -323,6 +323,13 @@ Implementation notes:
   - no breed's recall drops more than the set margin
   - the false breed claim rate doesn't get worse
 - The Model Health page reads only from marts.
+
+Implementation notes:
+
+- 11a (golden set): `make golden` picks up to 10 photos per known breed, once, from held-out photos whose label a person checked (the Oxford test set, and my own, folder and reviewed photos), skipping weak ones, by a seeded hash. It is written to `data/golden/golden.parquet` (committed) and never rewritten; its labels are the truth for the gate even if a later review changes the manifest. `make train` leaves out any golden photo that lands in the training pool, and `make eval` scores the golden set as its own test set.
+- 11b (gate): `make gate` loads the challenger (latest run) and the champion, has both answer the same photos (left out: anything either trained on, near-copies of either training pool, photos missing from either embedding cache) and checks: higher top-1 on the golden set and on the unseen-source test with the 5th percentile of a paired bootstrap (10,000 resamples) above zero; no breed with 10+ photos losing more than 10 points of recall; the false breed claim rate on domestic test cats (each model with its own tuned policy) not going up; no golden photo in the training pool. The report goes to the run folder as `gate.md`. `make promote` runs the same gate and makes the challenger champion only if it passes. The first registered run becomes champion without a comparison.
+- 11c (registry and serving): `model_registry` (since migration 0001) now also stores the last gate result and the promotion time (migration 0006). `make register` records a run (weights hash, dataset version, heads, temperatures, policy, headline numbers); `make registry` lists them. The API and the evidence index serve the champion and its own policy, falling back to the latest run when there is no champion or no database.
+- 11d (Model Health): a new page tab reads `GET /model-health`, which queries only the marts: `mart_model_registry` (new: runs, champion, last gate, golden and unseen-source top-1 from each run's latest evaluation), `mart_accuracy`, `mart_confused_pairs`, `mart_abstention` (live) and `mart_review_throughput`.
 
 **Step 12. Fine-tuning ablations.**
 

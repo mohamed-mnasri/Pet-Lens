@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from petlens import contracts as c
+from petlens.api import health as model_health_data
 from petlens.api import ingest, service
 from petlens.config import Settings, get_settings
 from petlens.data import own
@@ -224,6 +225,12 @@ def create_app(
     @app.get("/review/stats", response_model=c.ReviewStats)
     def review_stats(session: DB) -> c.ReviewStats:
         return answers.stats(session)
+
+    @app.get("/model-health")
+    def model_health(session: DB) -> dict[str, object]:
+        """The Model Health page: registry, latest evaluation, confusions, live abstention
+        and review throughput, all read from the dbt marts."""
+        return model_health_data.model_health(session)
 
     @app.get("/jobs/{job_id}", response_model=c.Job)
     def get_job(job_id: uuid.UUID, session: DB) -> c.Job:

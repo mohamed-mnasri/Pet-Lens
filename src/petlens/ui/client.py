@@ -50,6 +50,10 @@ class ApiClient:
         result: dict[str, Any] = self._json(self.http.get(f"/runs/{upload_id}"))
         return result
 
+    def model_health(self) -> dict[str, Any]:
+        result: dict[str, Any] = self._json(self.http.get("/model-health"))
+        return result
+
     def jobs(self, limit: int = 20) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = self._json(self.http.get("/jobs", params={"limit": limit}))
         return result

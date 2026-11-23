@@ -233,6 +233,8 @@ class ModelRegistry(Base):
     config: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     champion: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    gate: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # last promotion gate result
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created()
 
 

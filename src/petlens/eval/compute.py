@@ -11,13 +11,14 @@ Per species and test set:
   failures by source, breed, label origin or photo flag
 
 Held-out images that are near-copies of a training image are left out, as in training.
+The golden set (Step 11) is scored as its own test set, ``golden``, with its frozen labels.
 """
 
 from __future__ import annotations
 
 import math
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -25,6 +26,7 @@ import numpy as np
 from petlens.data.catalog import BreedCatalog
 from petlens.data.manifest import ManifestRow
 from petlens.models import policy
+from petlens.models.golden import GoldenRow
 from petlens.models.heads import SpeciesHead
 from petlens.models.metrics import expected_calibration_error, macro_f1, top_k_accuracy
 from petlens.models.openset import KnnIndex
@@ -63,8 +65,15 @@ def evaluate(
     breeds: BreedCatalog,
     cfg: policy.PolicyConfig,
     admitted: frozenset[str] = frozenset(),
+    golden: list[GoldenRow] | None = None,
 ) -> EvalResult:
     out = EvalResult()
+    by_id = {r.image_id: r for r in rows}
+    gold = [
+        replace(by_id[g.image_id], breed=g.breed, split="golden")
+        for g in golden or []
+        if g.image_id in by_id
+    ]
     close_pairs = [(a, b) for a, b in breeds.close_pairs]
     for species, head in sorted(heads.items()):
         classes = head.classes
@@ -76,9 +85,11 @@ def evaluate(
         train_x = np.stack([emb[r.image_id] for r in train]).astype(np.float64)
         knn = KnnIndex(train_x)
         train_unit = _unit(train_x)
-        for test in POLICY_SETS:
+        mine_gold = [r for r in gold if r.species == species and r.image_id in emb]
+        for test in (*POLICY_SETS, "golden"):
             known = test != "test_unknown"
-            sel = [r for r in mine if r.split == test and (not known or r.breed in index_of)]
+            pool = mine_gold if test == "golden" else mine
+            sel = [r for r in pool if r.split == test and (not known or r.breed in index_of)]
             if not sel:
                 continue
             x = np.stack([emb[r.image_id] for r in sel]).astype(np.float64)

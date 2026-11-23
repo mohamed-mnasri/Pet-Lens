@@ -6,7 +6,6 @@ then asks Postgres for the nearest training photos of the suggested breed.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -61,24 +60,15 @@ NO_DISPLAY = "no_display"
 
 
 def index_from_files(session: Session, settings: Settings) -> int:
-    """Index the training pool of the latest run (the same images the kNN score uses)."""
-    from petlens.data.catalog import REPO_DATA_DIR
-    from petlens.data.manifest import read_manifest
-    from petlens.models import embed, screening
+    """Index the served run's training pool (the same images the kNN score uses)."""
+    from petlens.models.registry import serving_run
+    from petlens.models.runs import load_run, version_vectors
     from petlens.models.train import in_training_pool
-    from petlens.vision.load import latest_run
 
-    run = latest_run(settings.models_dir)
-    info = json.loads((run / "metrics.json").read_text(encoding="utf-8"))
-    version, model_name = info["dataset_version"], info["embedding_model"]
-    rows = read_manifest(REPO_DATA_DIR / "manifests" / f"{version}.parquet")
-    screen_path = REPO_DATA_DIR / "screening" / f"{version}.parquet"
-    admitted = (
-        screening.admitted(screening.read(screen_path)) if screen_path.exists() else frozenset()
-    )
-    vecs = embed.read_embeddings(
-        embed.cache_path(settings.data_dir, model_name).with_name(f"{version}.parquet")
-    )
+    run = load_run(serving_run(settings.models_dir))
+    version, model_name = run.dataset_version, run.embedding_model
+    rows, admitted = run.rows, run.admitted
+    vecs = version_vectors(run, settings.data_dir)
     records = (
         TrainRecord(
             r.image_id,

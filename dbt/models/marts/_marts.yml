@@ -112,6 +112,26 @@ models:
       - {name: n, data_type: bigint}
       - {name: share_of_species_split, data_type: double precision}
 
+  - name: mart_model_registry
+    description: Registered runs, the champion, the last promotion gate and headline numbers.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: run_id, data_type: text, constraints: [{type: not_null}], data_tests: [unique]}
+      - {name: dataset_version, data_type: text}
+      - {name: embedding_model, data_type: text}
+      - {name: weights_hash, data_type: text}
+      - {name: is_champion, data_type: boolean}
+      - {name: registered_at, data_type: timestamp with time zone}
+      - {name: promoted_at, data_type: timestamp with time zone}
+      - {name: gate_passed, data_type: boolean}
+      - {name: gate_golden_gain, data_type: double precision}
+      - {name: gate_unseen_gain, data_type: double precision}
+      - {name: last_evaluated_at, data_type: timestamp with time zone}
+      - {name: golden_top1, data_type: double precision}
+      - {name: unseen_top1, data_type: double precision}
+      - {name: false_breed_claim_rate, data_type: double precision}
+
 unit_tests:
   - name: confused_pairs_count_only_wrong_known_breeds
     model: mart_confused_pairs

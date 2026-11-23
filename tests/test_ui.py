@@ -139,6 +139,22 @@ def test_end_to_end_smoke_through_the_page_client(tmp_path: Path) -> None:
         assert exc.value.status == 415
 
 
+def _accuracy(test_set: str, top1: float) -> dict[str, Any]:
+    return {
+        "species": "cat",
+        "test_set": test_set,
+        "n": 200,
+        "top1": top1,
+        "top1_lo": top1 - 0.04,
+        "top1_hi": top1 + 0.03,
+        "coverage": 0.7,
+        "selective_accuracy": 0.95,
+        "false_breed_claim_rate": None,
+        "unknown_rejection_rate": None,
+        "run_id": "20261123T120000Z-v2",
+    }
+
+
 class _FakeApi:
     def __init__(self, base_url: str) -> None:
         self.base_url = base_url
@@ -186,6 +202,27 @@ class _FakeApi:
     def training_photo_counts(self) -> dict[str, int]:
         return {"birman": 2, "ragdoll": 5}
 
+    def model_health(self) -> dict[str, Any]:
+        return {
+            "ready": True,
+            "registry": [
+                {
+                    "run_id": "20261123T120000Z-v2",
+                    "dataset_version": "v2",
+                    "is_champion": True,
+                    "registered_at": "2026-11-23T12:00:00",
+                    "promoted_at": "2026-11-23T12:05:00",
+                    "gate_passed": True,
+                    "golden_top1": 0.91,
+                    "unseen_top1": 0.6,
+                }
+            ],
+            "accuracy": [_accuracy("golden", 0.91)],
+            "confused": [],
+            "abstention": [],
+            "reviews": [],
+        }
+
     def jobs(self, limit: int = 20) -> list[dict[str, Any]]:
         return [
             {
@@ -228,6 +265,16 @@ def test_page_renders_limits_and_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not at.exception
     assert any(s.label == "Or type the breed" for s in at.selectbox)
     assert {"Not a cat or dog", "Skip"} <= {b.label for b in at.button}
+    # Model health: the champion and the latest evaluation, from the marts.
+    assert any("Serving **20261123T120000Z-v2**" in m.value for m in at.markdown)
+    assert any(s.value == "Latest evaluation" for s in at.subheader)
+
+
+def test_model_health_rows() -> None:
+    rows = view.accuracy_rows([_accuracy("test_unseen_source", 0.554)])
+    assert rows[0]["Test set"] == "Unseen sources"
+    assert rows[0]["Top-1 (95% range)"] == "55.4% (51% to 58%)"
+    assert view.champion_line([]).startswith("No champion yet")
 
 
 def test_review_wording() -> None:

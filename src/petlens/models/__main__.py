@@ -1,4 +1,8 @@
-"""Command line entry point: ``python -m petlens.models <embed|train>``."""
+"""Command line entry point: ``python -m petlens.models <stage>``.
+
+Stages: embed, screen, train, compare, and the registry ones (Step 11): golden (freeze
+the golden set), register, gate (compare with the champion) and promote.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +12,7 @@ import logging
 from petlens.config import get_settings
 from petlens.data.catalog import REPO_DATA_DIR, load_breeds
 from petlens.data.manifest import read_manifest
-from petlens.models import embed, policy, screening, train
+from petlens.models import embed, golden, policy, screening, train
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -20,9 +24,21 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("screen", help="screen Commons breed photos with the v0 head")
     sub.add_parser("train", help="train and evaluate the heads")
     sub.add_parser("compare", help="look-alike breeds in the last two training runs")
+    g = sub.add_parser("golden", help="freeze the golden set (once) or show it")
+    g.add_argument("--per-breed", type=int, default=10)
+    sub.add_parser("register", help="record the latest run in the model registry")
+    for name in ("gate", "promote"):
+        p = sub.add_parser(name, help=f"{name}: compare a run with the champion")
+        p.add_argument("--run", default=None, help="run id or prefix (default: the latest)")
+    sub.add_parser("registry", help="list registered runs")
     args = parser.parse_args(argv)
     if args.stage == "compare":
         print(train.compare_runs(get_settings().models_dir))
+        return
+    if args.stage in ("register", "gate", "promote", "registry"):
+        from petlens.models import cli_registry
+
+        cli_registry.run(args.stage, getattr(args, "run", None))
         return
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -34,6 +50,20 @@ def main(argv: list[str] | None = None) -> None:
         if r.split != "excluded"
     ]
     model = embed.DEFAULT_MODEL
+
+    if args.stage == "golden":
+        frozen = golden.read()
+        if not frozen:
+            picked = golden.select(rows, load_breeds(), version, per_breed=args.per_breed)
+            golden.write(picked)
+            frozen = golden.read()
+            print(f"froze {len(frozen)} photos into {golden.GOLDEN_PATH}")
+        print(golden.summary(frozen))
+        known = {(s, b) for s in ("cat", "dog") for b in load_breeds().training_classes(s)}
+        missing = sorted(b for s, b in known - {(g.species, g.breed) for g in frozen})
+        if missing:
+            print(f"  no golden photos yet: {', '.join(missing)}")
+        return
 
     if args.stage == "embed":
         fn = embed.load_dinov2(model, args.device)
@@ -59,7 +89,11 @@ def main(argv: list[str] | None = None) -> None:
         )
         policy_path = REPO_DATA_DIR / "policy.yaml"
         base = policy.load(policy_path) if policy_path.exists() else policy.PolicyConfig()
-        heads, metrics = train.train(rows, vecs, load_breeds(), admitted=admitted, base_policy=base)
+        gold = golden.ids()
+        kept = [r for r in rows if not (r.image_id in gold and r.split in train.POOL)]
+        if len(kept) < len(rows):
+            logging.warning("left %d golden photos out of training", len(rows) - len(kept))
+        heads, metrics = train.train(kept, vecs, load_breeds(), admitted=admitted, base_policy=base)
         tuned = policy.PolicyConfig.model_validate(metrics["policy_config"])
         tuned.tuned_on = f"{tuned.tuned_on}; dataset {version}"
         policy.save(tuned, policy_path)

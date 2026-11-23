@@ -1,8 +1,8 @@
 """PetLens page: ``make ui`` (needs ``make api`` running).
 
 Identify photos or short clips (each animal's decision, its top 3 and the most similar
-training photos), swipe-review cards, add training photos by breed, and follow batch
-jobs. The page only talks to the API.
+training photos), swipe-review cards, add training photos by breed, follow batch jobs,
+and check the model's health (read from the dbt marts). The page only talks to the API.
 """
 
 from __future__ import annotations
@@ -337,6 +337,66 @@ def show_training_result(done: dict[str, Any]) -> None:
                     st.write(f"**{name}**: {r['reason']}")
 
 
+def health_tab(api: api_client.ApiClient) -> None:
+    data = api.model_health()
+    if not data.get("ready"):
+        st.info("Some numbers are missing. Run `make eval` and then `make dbt` to build them.")
+    st.markdown(view.champion_line(data.get("registry", [])))
+    rows = view.accuracy_rows(data.get("accuracy", []))
+    if rows:
+        st.subheader("Latest evaluation")
+        st.caption(f"Run {data['accuracy'][0]['run_id']}")
+        st.dataframe(rows, hide_index=True, width="stretch")
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Most confused breeds")
+        confused = data.get("confused", [])
+        if confused:
+            st.dataframe(
+                [
+                    {
+                        "True breed": r["true_label"],
+                        "Taken for": r["predicted_label"],
+                        "Times": r["n_confused"],
+                        "Share": view.pct(r["share_of_label"]),
+                    }
+                    for r in confused
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+        else:
+            st.caption("No confusions recorded yet.")
+    with right:
+        st.subheader("Registered models")
+        registry = data.get("registry", [])
+        if registry:
+            st.dataframe(
+                [
+                    {
+                        "Run": r["run_id"][:24],
+                        "Champion": "yes" if r["is_champion"] else "",
+                        "Gate": {True: "passed", False: "failed"}.get(r["gate_passed"], ""),
+                        "Golden": view.pct(r["golden_top1"]),
+                        "Unseen": view.pct(r["unseen_top1"]),
+                    }
+                    for r in registry
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+        else:
+            st.caption("No registered models yet.")
+    live = data.get("abstention", [])
+    reviews = data.get("reviews", [])
+    if live:
+        st.subheader("Live uploads, last 14 days")
+        st.dataframe(live, hide_index=True, width="stretch")
+    if reviews:
+        st.subheader("Swipe reviews, last 14 days")
+        st.dataframe(reviews, hide_index=True, width="stretch")
+
+
 def main() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
     st.title("🐾 PetLens")
@@ -350,8 +410,8 @@ def main() -> None:
         st.error(f"The API isn't answering at {base_url}. Start it with `make api`.")
         st.stop()
     limits = api.limits()
-    upload, review, training, jobs = st.tabs(
-        ["📷 Identify", "👆 Review", "🖼️ Training photos", "⚙️ Batch jobs"]
+    upload, review, training, health, jobs = st.tabs(
+        ["📷 Identify", "👆 Review", "🖼️ Training photos", "📈 Model health", "⚙️ Batch jobs"]
     )
     with upload:
         upload_tab(api, limits)
@@ -359,6 +419,8 @@ def main() -> None:
         review_tab(api, api.breeds())
     with training:
         training_tab(api)
+    with health:
+        health_tab(api)
     with jobs:
         jobs_tab(api)
 

@@ -17,7 +17,7 @@ from petlens.data.manifest import ManifestRow
 from petlens.db import migrate
 from petlens.db import models as m
 from petlens.eval import compute, store
-from petlens.models import policy, train
+from petlens.models import golden, policy, train
 
 DBT_SCHEMAS = ("analytics", "staging", "intermediate", "marts", "snapshots")
 
@@ -68,9 +68,22 @@ def main() -> None:
     breeds = load_breeds()
     heads, metrics = train.train(rows, emb, breeds)
     cfg = policy.PolicyConfig.model_validate(metrics["policy_config"])
-    result = compute.evaluate(rows, emb, heads, breeds, cfg)
+    gold = golden.select(rows, breeds, "fixture", per_breed=2)
+    result = compute.evaluate(rows, emb, heads, breeds, cfg, golden=gold)
     with Session(engine) as s:
         store.save(s, result, "fixture-run", "fixture", "fake", compute.composition(rows))
+        s.add(m.DatasetVersion(version="fixture", manifest_hash="0" * 64))
+        s.flush()
+        s.add(
+            m.ModelRegistry(
+                run_id="fixture-run",
+                weights_hash="0" * 64,
+                dataset_version="fixture",
+                config={"embedding_model": "fake"},
+                champion=True,
+                gate={"passed": True, "numbers": {"golden set": {"diff": 0.02}}},
+            )
+        )
         for i, outcome in enumerate(["accept", "no_clear_breed", "review"]):
             up = m.Upload(
                 kind="photo",

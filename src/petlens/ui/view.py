@@ -176,3 +176,48 @@ def option_label(label: str) -> str:
 def counts_text(counts: dict[str, int]) -> str:
     parts = " · ".join(f"{nice(b)} {n}" for b, n in counts.items())
     return f"Loaded so far: {parts} ({sum(counts.values())} photos)"
+
+
+# --- Model Health (Step 11): everything comes from the dbt marts -----------------------
+
+TEST_SET_NAMES = {
+    "golden": "Golden set",
+    "test_in_domain": "Oxford test",
+    "test_unseen_source": "Unseen sources",
+    "test_domestic": "Domestic cats",
+    "test_unknown": "Unknown breeds",
+}
+
+
+def pct(value: float | None) -> str:
+    return "" if value is None else f"{value:.1%}"
+
+
+def champion_line(registry: list[dict[str, Any]]) -> str:
+    best = next((r for r in registry if r["is_champion"]), None)
+    if best is None:
+        return "No champion yet. Run `make register` and `make promote`."
+    since = str(best.get("promoted_at") or best["registered_at"])[:10]
+    return f"Serving **{best['run_id']}** (data {best['dataset_version']}), champion since {since}."
+
+
+def accuracy_rows(accuracy: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """One display row per species and test set, with the 95% range on top-1."""
+    out = []
+    for a in accuracy:
+        top1 = pct(a["top1"])
+        if a["top1"] is not None and a["top1_lo"] is not None:
+            top1 += f" ({a['top1_lo']:.0%} to {a['top1_hi']:.0%})"
+        special = a["false_breed_claim_rate"] or a["unknown_rejection_rate"]
+        out.append(
+            {
+                "Species": a["species"],
+                "Test set": TEST_SET_NAMES.get(a["test_set"], a["test_set"]),
+                "Photos": str(a["n"]),
+                "Top-1 (95% range)": top1,
+                "Answered": pct(a["coverage"]),
+                "Right when answered": pct(a["selective_accuracy"]),
+                "Claim / rejection rate": pct(special),
+            }
+        )
+    return out
