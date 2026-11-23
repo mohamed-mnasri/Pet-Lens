@@ -157,6 +157,9 @@ def test_answers_become_label_events(sessions: sessionmaker[Session]) -> None:
         assert first is not None and first.id == ids["a"]  # the easy domestic question
         assert first.question == "Is this a Bengal?"
         assert answers.next_card(s, species="dog") is None
+        assert answers.pending_by_breed(s, "cat") == {"bengal": 2, "ragdoll": 1, "siamese": 1}
+        only = answers.next_card(s, breed="ragdoll")
+        assert only is not None and only.id == ids["b"] and only.pending == 1
         assert "domestic_cat" in first.options and first.options[-1] == "not_pet"
         with pytest.raises(answers.ReviewError, match="Pick an answer"):
             answers.answer(s, ids["a"], c.ReviewIn(answer="wrong"))

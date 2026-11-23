@@ -5,8 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from functools import lru_cache
+from typing import Any
 
-from sqlalchemy import func, select, text
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from petlens import contracts as c
@@ -77,23 +78,47 @@ def picker(card: m.ReviewCard) -> list[str]:
     return out
 
 
-def _pending(session: Session, queue: str | None, species: str | None = None) -> int:
-    q = select(func.count()).select_from(m.ReviewCard).where(m.ReviewCard.state == "pending")
+def _filtered(q: Any, queue: str | None, species: str | None, breed: str | None) -> Any:
     if queue:
         q = q.where(m.ReviewCard.queue == queue)
     if species:
         q = q.where(m.ReviewCard.species == species)
-    return int(session.execute(q).scalar_one())
+    if breed:  # dev tool: swipe one breed (the suggested answer, or the model's for blind cards)
+        q = q.where(
+            or_(
+                m.ReviewCard.suggested == breed,
+                and_(m.ReviewCard.suggested.is_(None), m.ReviewCard.model_label == breed),
+            )
+        )
+    return q
+
+
+def _pending(
+    session: Session, queue: str | None, species: str | None = None, breed: str | None = None
+) -> int:
+    q = select(func.count()).select_from(m.ReviewCard).where(m.ReviewCard.state == "pending")
+    return int(session.execute(_filtered(q, queue, species, breed)).scalar_one())
+
+
+def pending_by_breed(session: Session, species: str | None = None) -> dict[str, int]:
+    """Pending cards per breed (dev tool for swiping one breed at a time)."""
+    label = func.coalesce(m.ReviewCard.suggested, m.ReviewCard.model_label)
+    q = select(label, func.count()).where(m.ReviewCard.state == "pending")
+    if species:
+        q = q.where(m.ReviewCard.species == species)
+    rows = session.execute(q.group_by(label)).all()
+    return {str(b): int(n) for b, n in sorted(rows, key=lambda r: str(r[0])) if b}
 
 
 def next_card(
-    session: Session, queue: str | None = None, species: str | None = None
+    session: Session,
+    queue: str | None = None,
+    species: str | None = None,
+    breed: str | None = None,
 ) -> c.CardView | None:
-    q = select(m.ReviewCard).where(m.ReviewCard.state == "pending")
-    if queue:
-        q = q.where(m.ReviewCard.queue == queue)
-    if species:
-        q = q.where(m.ReviewCard.species == species)
+    q = _filtered(
+        select(m.ReviewCard).where(m.ReviewCard.state == "pending"), queue, species, breed
+    )
     # Easy questions first; within a priority a stable shuffle, so check cards mix in.
     card = session.scalars(
         q.order_by(m.ReviewCard.priority, func.md5(m.ReviewCard.ref)).limit(1)
@@ -114,7 +139,7 @@ def next_card(
         question=question(card),
         options=picker(card),
         references=references(session, card.species, card.suggested),
-        pending=_pending(session, queue, species),
+        pending=_pending(session, queue, species, breed),
     )
 
 

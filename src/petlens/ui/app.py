@@ -144,12 +144,13 @@ def _send(api: api_client.ApiClient, card: dict[str, Any], answer: str, label: s
 
 
 def review_tab(api: api_client.ApiClient, breeds: list[dict[str, str]]) -> None:
-    top1, top2, top3 = st.columns([2, 3, 3], vertical_alignment="center")
+    top1, top2, top3, top4 = st.columns([2, 2, 2, 3], vertical_alignment="center")
     with top1:
         animals = {"Cats and dogs": None, "Cats": "cat", "Dogs": "dog"}
         animal = st.segmented_control(
             "Animals", list(animals), default="Cats and dogs", label_visibility="collapsed"
         )
+    species = animals.get(animal or "Cats and dogs")
     with top2:
         queues = {
             "All queues": None,
@@ -159,8 +160,10 @@ def review_tab(api: api_client.ApiClient, breeds: list[dict[str, str]]) -> None:
         }
         pick = st.selectbox("Queue", list(queues), label_visibility="collapsed")
     with top3:
+        breed = breed_picker(api, species)  # dev tool, see below
+    with top4:
         st.caption(view.stats_text(api.review_stats()))
-    card = api.review_next(queues[pick], animals.get(animal or "Cats and dogs"))
+    card = api.review_next(queues[pick], species, breed)
     if card is None:
         st.success("Nothing left to review here. 🎉")
         return
@@ -196,6 +199,18 @@ def review_tab(api: api_client.ApiClient, breeds: list[dict[str, str]]) -> None:
         "Keys: → correct · ← wrong · ↑ not sure (click an empty spot first if the arrows "
         'switch tabs). "Not sure" deletes the photo: use it for poor photos.'
     )
+
+
+# --- dev tool: swipe one breed at a time. Temporary; delete this function and its call
+# (plus GET /review/breeds) to remove it.
+def breed_picker(api: api_client.ApiClient, species: str | None) -> str | None:
+    counts = api.review_breeds(species)
+    labels = {"": f"All breeds ({sum(counts.values())})"}
+    labels |= {b: f"{view.nice(b)} ({n})" for b, n in counts.items()}
+    choice = st.selectbox(
+        "Breed", list(labels), format_func=labels.__getitem__, label_visibility="collapsed"
+    )
+    return choice or None
 
 
 def review_answers(

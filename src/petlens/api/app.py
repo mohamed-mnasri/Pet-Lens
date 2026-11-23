@@ -198,9 +198,17 @@ def create_app(
 
     @app.get("/review/next", response_model=c.CardView | None)
     def review_next(
-        session: DB, queue: c.ReviewQueue | None = None, species: c.Species | None = None
+        session: DB,
+        queue: c.ReviewQueue | None = None,
+        species: c.Species | None = None,
+        breed: str | None = None,
     ) -> c.CardView | None:
-        return answers.next_card(session, queue, species)
+        return answers.next_card(session, queue, species, breed)
+
+    @app.get("/review/breeds")
+    def review_breeds(session: DB, species: c.Species | None = None) -> dict[str, int]:
+        """Pending cards per breed, for the page's one-breed swipe picker (dev tool)."""
+        return answers.pending_by_breed(session, species)
 
     @app.post("/review/{card_id}", response_model=c.LabelEvent)
     def review_answer(card_id: uuid.UUID, body: c.ReviewIn, session: DB) -> c.LabelEvent:

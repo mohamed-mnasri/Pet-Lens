@@ -158,8 +158,11 @@ class _FakeApi:
             "reviewer_accuracy": 0.5,
         }
 
+    def review_breeds(self, species: str | None = None) -> dict[str, int]:
+        return {"bengal": 3, "ragdoll": 1}
+
     def review_next(
-        self, queue: str | None = None, species: str | None = None
+        self, queue: str | None = None, species: str | None = None, breed: str | None = None
     ) -> dict[str, Any] | None:
         return {
             "id": "card-1",
@@ -218,6 +221,8 @@ def test_page_renders_limits_and_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert any(s.label.startswith("Breed of every photo") for s in at.selectbox)
     labels = [b.label for b in at.button]
     assert {"Wrong", "Not sure", "Correct"} <= set(labels)
+    breed_box = next(s for s in at.selectbox if s.label == "Breed")
+    assert breed_box.options == ["All breeds (4)", "Bengal (3)", "Ragdoll (1)"]
     # After "Wrong": the card's choices plus a box to type the breed.
     next(b for b in at.button if b.label == "Wrong").click().run()
     assert not at.exception

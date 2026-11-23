@@ -61,9 +61,10 @@ class ApiClient:
         return result
 
     def review_next(
-        self, queue: str | None = None, species: str | None = None
+        self, queue: str | None = None, species: str | None = None, breed: str | None = None
     ) -> dict[str, Any] | None:
-        params = {k: v for k, v in {"queue": queue, "species": species}.items() if v}
+        wanted = {"queue": queue, "species": species, "breed": breed}
+        params = {k: v for k, v in wanted.items() if v}
         result: dict[str, Any] | None = self._json(self.http.get("/review/next", params=params))
         return result
 
@@ -72,6 +73,11 @@ class ApiClient:
     ) -> dict[str, Any]:
         body = {"answer": answer, "label": label, "review_ms": review_ms}
         result: dict[str, Any] = self._json(self.http.post(f"/review/{card_id}", json=body))
+        return result
+
+    def review_breeds(self, species: str | None = None) -> dict[str, int]:
+        params = {"species": species} if species else {}
+        result: dict[str, int] = self._json(self.http.get("/review/breeds", params=params))
         return result
 
     def review_stats(self) -> dict[str, Any]:
