@@ -34,6 +34,7 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
+from petlens.data import quality
 from petlens.data.catalog import REPO_DATA_DIR, BreedCatalog
 from petlens.data.imaging import stored_path
 from petlens.data.manifest import ManifestRow, read_manifest, to_table, write_manifest
@@ -367,6 +368,7 @@ def build(
         raise RuntimeError("no source manifests found; run `make data-oxford` first")
     rows = apply_reviews(rows, read_reviews(repo_data_dir / "reviews" / "labels.parquet"))
     rows = add_phashes(rows, data_dir)
+    rows = quality.apply_checks(rows, data_dir)
     rows = assign_groups(rows, breeds, policy)
     rows = assign_splits(rows, breeds, previous, policy)
 

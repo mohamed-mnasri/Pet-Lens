@@ -201,6 +201,7 @@ def test_page_renders_limits_and_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not at.exception
     assert at.title[0].value == "🐾 PetLens"
     assert any("40 MP" in c.value for c in at.caption)
+    assert any("face and the body" in i.value for i in at.info)
     assert any("review_batch" in (p.proto.text or "") for p in at.get("progress"))
     # The review tab: the question, my accuracy, and the three swipe buttons.
     assert any(s.value == "Is this a Bengal?" for s in at.subheader)

@@ -13,12 +13,13 @@ import uuid
 from collections.abc import Iterable
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from petlens.data.catalog import BreedCatalog
 from petlens.data.manifest import ManifestRow
+from petlens.data.quality import box_flags, is_weak
 from petlens.db import models as m
 from petlens.models.screening import ScreenResult
 
@@ -55,6 +56,8 @@ def commons_cards(
         if s.decision not in ("review", "admit_and_review") or s.image_id not in by_id:
             continue
         r = by_id[s.image_id]
+        if is_weak(r):
+            continue  # black and white, blurry, cut off, tiny: not worth a swipe
         disagreed = s.decision == "review"
         if not disagreed:
             priority = PRIORITY_SAMPLE
@@ -86,7 +89,11 @@ def check_cards(
     """``n`` Oxford test photos. Half show the true breed, half a wrong one of the same
     species, so "correct" isn't always the right answer."""
     tests = sorted(
-        (r for r in rows if r.source == "oxford" and r.split == "test_in_domain"),
+        (
+            r
+            for r in rows
+            if r.source == "oxford" and r.split == "test_in_domain" and not is_weak(r)
+        ),
         key=lambda r: unit(seed, "check", r.image_id),
     )[:n]
     cards = []
@@ -130,6 +137,25 @@ def insert_cards(session: Session, cards: list[dict[str, Any]]) -> int:
     return added
 
 
+def drop_weak_cards(session: Session, rows: Iterable[ManifestRow]) -> int:
+    """Take unanswered Commons and check cards off the queue once their photo is flagged
+    as weak. Answered cards stay: their answers are already label events."""
+    weak = [r.image_id for r in rows if is_weak(r)]
+    dropped = 0
+    for start in range(0, len(weak), 1000):
+        stmt = (
+            delete(m.ReviewCard)
+            .where(
+                m.ReviewCard.state == "pending",
+                m.ReviewCard.queue.in_(("commons", "check")),
+                m.ReviewCard.image_id.in_(weak[start : start + 1000]),
+            )
+            .returning(m.ReviewCard.id)
+        )
+        dropped += len(session.execute(stmt).all())
+    return dropped
+
+
 def cards_for_upload(
     session: Session, upload_id: uuid.UUID, audit_rate: float = AUDIT_RATE, seed: int = 0
 ) -> int:
@@ -149,9 +175,11 @@ def cards_for_upload(
     cards = []
     for p in preds:
         if p.detection_id is not None:
-            det = next((d for d in dets if d.id == p.detection_id), None)
+            members = [d for d in dets if d.id == p.detection_id]
         else:
-            det = next((d for d in dets if d.group_idx == p.group_idx), None)
+            members = [d for d in dets if d.group_idx == p.group_idx]
+        # Show the animal where it's whole and big enough; skip it if it never is.
+        det = next((d for d in members if not box_flags((d.x0, d.y0, d.x1, d.y1))), None)
         if det is None:
             continue
         frame = frames[det.frame_id]

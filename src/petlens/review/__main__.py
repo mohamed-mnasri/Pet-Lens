@@ -34,6 +34,7 @@ def main(argv: list[str] | None = None) -> None:
             version = (REPO_DATA_DIR / "manifests" / "LATEST").read_text(encoding="utf-8").strip()
             rows = read_manifest(REPO_DATA_DIR / "manifests" / f"{version}.parquet")
             results = screening.read(REPO_DATA_DIR / "screening" / f"{version}.parquet")
+            dropped = cards.drop_weak_cards(session, rows)
             new = cards.insert_cards(session, cards.commons_cards(rows, results))
             total = int(
                 session.execute(select(func.count()).select_from(m.ReviewCard)).scalar_one()
@@ -41,6 +42,8 @@ def main(argv: list[str] | None = None) -> None:
             n_checks = max(1, round(total * cards.CHECK_RATE / (1 - cards.CHECK_RATE)))
             checks = cards.insert_cards(session, cards.check_cards(rows, load_breeds(), n_checks))
             print(f"queued {new} Commons cards and {checks} reviewer-check cards ({version})")
+            if dropped:
+                print(f"took {dropped} weak photos off the queue (black and white, blurry, ...)")
         elif args.cmd == "export":
             from petlens.review.export import export
 

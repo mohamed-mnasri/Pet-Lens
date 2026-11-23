@@ -247,3 +247,17 @@ def test_review_api(tmp_path: Path) -> None:
         assert bad.status_code == 404
         assert client.get("/review/stats").json()["answered"] == 1
         assert client.get("/review/next", params={"queue": "nope"}).status_code == 422
+
+
+@pytest.mark.db
+@pytest.mark.skipif(not DATABASE_URL, reason="DATABASE_URL not set")
+def test_weak_photos_leave_the_queue(sessions: sessionmaker[Session]) -> None:
+    with sessions() as s:
+        ids = _load(s)
+        answers.answer(s, ids["a"], c.ReviewIn(answer="unsure"))
+        flagged = [_row(r.image_id, r.breed, flags=["grayscale"]) for r in ROWS]
+        # "a" was answered, so it stays; "b" and "c" were pending and go.
+        assert cards.drop_weak_cards(s, flagged) == 2
+        s.commit()
+        left = {cd.image_id[0] for cd in s.scalars(select(m.ReviewCard)) if cd.image_id}
+        assert left == {"a", "9"}

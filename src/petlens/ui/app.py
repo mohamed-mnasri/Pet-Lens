@@ -52,6 +52,7 @@ def show_run(api: api_client.ApiClient, name: str, run: dict[str, Any]) -> None:
             st.info(upload["note"])
         labels = view.detection_labels(run)
         frames = run["frames"]
+        tips: list[str] = []
         left, right = st.columns([3, 2])
         with left:
             shown = frames if len(frames) <= 1 else frames[:: max(1, len(frames) // 4)]
@@ -59,6 +60,8 @@ def show_run(api: api_client.ApiClient, name: str, run: dict[str, Any]) -> None:
             for col, f in zip(cols, shown, strict=True):
                 dets = [d for d in run["detections"] if d["frame_id"] == f["id"]]
                 frame_bytes = api.image(f"/images/frames/{f['image_id']}")
+                if upload["kind"] == "photo":
+                    tips = view.photo_tips(frame_bytes, dets)
                 with col:
                     st.image(view.draw_boxes(frame_bytes, dets, labels), width="stretch")
                     if upload["kind"] != "photo" or len(frames) > 1:
@@ -68,12 +71,15 @@ def show_run(api: api_client.ApiClient, name: str, run: dict[str, Any]) -> None:
                 st.warning("No cat or dog found.")
             for p in run["predictions"]:
                 show_prediction(api, run, p)
+            for tip in tips:
+                st.caption(f"📸 {tip}")
         faces = sum(f["faces_blurred"] for f in frames)
         if faces:
             st.caption(f"{faces} face(s) blurred in the stored copy.")
 
 
 def upload_tab(api: api_client.ApiClient, limits: dict[str, float]) -> None:
+    st.info(view.PHOTO_GUIDE, icon="📸")
     st.caption(view.limits_text(limits))
     files = st.file_uploader(
         "Photos or clips",

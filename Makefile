@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -80,6 +80,10 @@ data-commons:
 
 data-build:
 	uv run python -m petlens.data build
+
+# Flag weak photos (black and white, blurry, animal cut off or tiny). Uses the detector.
+data-quality:
+	uv run --extra ml python -m petlens.data.quality
 
 # Step 3: embeddings and baseline heads. Needs the optional ML packages (torch, timm).
 install-ml:

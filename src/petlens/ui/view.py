@@ -9,6 +9,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFont
 
 from petlens.api.ingest import sniff
+from petlens.data.quality import box_flags, pixel_flags
 
 BADGES = {
     "accept": ("Breed", "green"),
@@ -64,6 +65,33 @@ def limits_text(limits: dict[str, float]) -> str:
         f"{limits['photo_max_pixels'] / 1e6:.0f} MP. Clips: MP4, MOV or WebM, up to "
         f"{limits['video_max_bytes'] / 2**20:.0f} MB and {limits['video_max_seconds']:.0f} s."
     )
+
+
+PHOTO_GUIDE = (
+    "**For the best answer:** a clear, well-lit colour photo with the whole cat or dog in "
+    "frame, ideally from the front so both the face and the body show. Close-ups of paws "
+    "or tails, black-and-white photos and blurry shots give weak answers."
+)
+
+TIPS = {
+    "grayscale": "This looks black and white. Colour helps a lot with breeds.",
+    "blurry": "This looks blurry. A sharper photo will give a better answer.",
+    "cut_off": "Only part of the animal is in the photo. Try one with the whole body.",
+    "small_animal": "The animal is small in the photo. Move closer or crop around it.",
+}
+
+
+def photo_tips(frame: bytes, detections: list[dict[str, Any]]) -> list[str]:
+    """Plain tips when a photo is weak in the ways that hurt the answer."""
+    with Image.open(io.BytesIO(frame)) as im:
+        flags = pixel_flags(im)
+    animals = [d for d in detections if d.get("species") in ("cat", "dog")]
+    if animals:
+        boxes = [box_flags((d["x0"], d["y0"], d["x1"], d["y1"])) for d in animals]
+        # Only nag about framing when no animal in the photo is framed well.
+        if all(boxes):
+            flags += sorted({f for b in boxes for f in b})
+    return [TIPS[f] for f in flags if f in TIPS]
 
 
 def draw_boxes(frame: bytes, detections: list[dict[str, Any]], labels: dict[str, str]) -> bytes:
