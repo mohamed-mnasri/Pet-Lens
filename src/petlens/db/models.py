@@ -303,3 +303,111 @@ class ReviewCard(Base):
     state: Mapped[str] = mapped_column(String(16), server_default="pending")
     created_at: Mapped[datetime] = _created()
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# --- evaluation (Step 10): written by ``make eval``, read by the dbt marts ------------
+
+
+class EvalRun(Base):
+    """One evaluation of a training run on its dataset version's test sets."""
+
+    __tablename__ = "eval_run"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    run_id: Mapped[str] = mapped_column(String(128))
+    dataset_version: Mapped[str] = mapped_column(String(64))
+    embedding_model: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = _created()
+
+
+class EvalMetric(Base):
+    """A headline metric for one species and test set, with a 95% interval when it has one.
+    ``param`` holds the coverage for risk-coverage points."""
+
+    __tablename__ = "eval_metric"
+    __table_args__ = (
+        _in("species", c.Species),
+        Index("ix_eval_metric_run", "eval_run_id", "species", "test_set"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    eval_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("eval_run.id", ondelete="CASCADE")
+    )
+    species: Mapped[str] = mapped_column(String(8))
+    test_set: Mapped[str] = mapped_column(String(32))
+    metric: Mapped[str] = mapped_column(String(48))
+    param: Mapped[float | None] = mapped_column(Float)
+    value: Mapped[float] = mapped_column(Float)
+    lo: Mapped[float | None] = mapped_column(Float)
+    hi: Mapped[float | None] = mapped_column(Float)
+    n: Mapped[int] = mapped_column(Integer)
+
+
+class EvalClassMetric(Base):
+    """Recall and precision per class, with Wilson intervals on recall."""
+
+    __tablename__ = "eval_class_metric"
+    __table_args__ = (
+        _in("species", c.Species),
+        Index("ix_eval_class_metric_run", "eval_run_id", "species", "test_set"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    eval_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("eval_run.id", ondelete="CASCADE")
+    )
+    species: Mapped[str] = mapped_column(String(8))
+    test_set: Mapped[str] = mapped_column(String(32))
+    label: Mapped[str] = mapped_column(String(64))
+    n: Mapped[int] = mapped_column(Integer)
+    recall: Mapped[float] = mapped_column(Float)
+    recall_lo: Mapped[float] = mapped_column(Float)
+    recall_hi: Mapped[float] = mapped_column(Float)
+    precision: Mapped[float | None] = mapped_column(Float)
+
+
+class EvalImage(Base):
+    """One test image's result: what the head said and what the policy decided."""
+
+    __tablename__ = "eval_image"
+    __table_args__ = (
+        _in("species", c.Species),
+        _in("outcome", c.Outcome),
+        Index("ix_eval_image_run", "eval_run_id", "species", "test_set"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    eval_run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("eval_run.id", ondelete="CASCADE")
+    )
+    image_id: Mapped[str] = mapped_column(String(64))
+    species: Mapped[str] = mapped_column(String(8))
+    test_set: Mapped[str] = mapped_column(String(32))
+    source: Mapped[str] = mapped_column(String(32))
+    label_origin: Mapped[str] = mapped_column(String(32))
+    true_label: Mapped[str] = mapped_column(String(64))
+    known_breed: Mapped[bool] = mapped_column(Boolean)
+    predicted_label: Mapped[str] = mapped_column(String(64))
+    confidence: Mapped[float] = mapped_column(Float)
+    knn_distance: Mapped[float] = mapped_column(Float)
+    outcome: Mapped[str] = mapped_column(String(16))
+    decided_label: Mapped[str | None] = mapped_column(String(64))
+    top1_correct: Mapped[bool] = mapped_column(Boolean)
+    flags: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+
+
+class DatasetCount(Base):
+    """Dataset composition per version (from the manifest), for the composition mart."""
+
+    __tablename__ = "dataset_count"
+    __table_args__ = (Index("ix_dataset_count_version", "dataset_version"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    dataset_version: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(32))
+    species: Mapped[str] = mapped_column(String(8))
+    breed: Mapped[str] = mapped_column(String(64))
+    split: Mapped[str] = mapped_column(String(32))
+    label_origin: Mapped[str] = mapped_column(String(32))
+    n: Mapped[int] = mapped_column(Integer)

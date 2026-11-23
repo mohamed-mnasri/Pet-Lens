@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -117,3 +117,7 @@ compare:
 # Step 5: analyse photos or clips, e.g. make analyse FILES="D:/petlens-data/footage/cat.mp4"
 analyse:
 	uv run --extra ml python -m petlens.vision $(FILES)
+
+# Step 10: evaluate the latest training run into the metric tables, then build the marts.
+eval:
+	uv run python -m petlens.eval
