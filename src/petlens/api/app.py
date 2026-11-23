@@ -114,7 +114,7 @@ def create_app(
             log.warning("%s", exc.detail)
         yield
 
-    app = FastAPI(title="PetLens", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="PetLens", version="1.0.0", lifespan=lifespan)
 
     app.state.sessions = factory
 

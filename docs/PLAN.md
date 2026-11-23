@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 18. Write-up and release
+**Current step:** 18. Demo video and the v1.0.0 tag (code complete)
 **Last updated:** 2026-11-23
 
 ## Principles I'm holding myself to
@@ -34,7 +34,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 15 | Pet profiles (Phase 3 gate) | 3: VLM and pets | Done in code (re-ID numbers need my named pets) |
 | 16 | Live camera page | 4: Live and presentation | Done (FPS shown on the page; my RTX 2060 number goes in the README) |
 | 17 | One-command demo, README, model and dataset cards, ADRs | 4: Live and presentation | Done (`make up && make demo`; cards regenerate with `make cards`) |
-| 18 | Demo video and write-up | 4: Live and presentation | Not started |
+| 18 | Demo video and write-up | 4: Live and presentation | Write-up and changelog done; video and `v1.0.0` tag are mine after merging |
 
 No fixed deadline: I'm building it with AI coding help, so scope is set by quality, not hours. Each phase ends at a gate with a tagged release, so there is always a working version.
 
@@ -404,6 +404,8 @@ Implementation notes: `make api`, then open http://127.0.0.1:8000/live (or the "
 Implementation notes: `make up` installs the packages (with dbt), starts Postgres and migrates. `make demo` (`petlens.demo`) creates a separate `petlens_demo` database on the same server, fills it with the CI fixtures plus two made-up pets with drawn crop images (in `.petlens-demo/`, git-ignored), runs `dbt build` on it, then starts the API on 8100 (`create_app(require_models=False)`: endpoints that need a model answer 503 with a plain message) and the page on 8601, and opens the browser. Ctrl+C stops both. `make cards` (`petlens.cards`) writes `MODEL_CARD.md` from the serving run and its gate result, `DATASET_CARD.md` from the latest manifest, and `ATTRIBUTION.md` (the Oxford citation, then one line per Commons and Openverse photo). ADRs 0002 to 0008 cover Postgres, the job queue, the linear probe, the VLM as a screener, appearance grouping, the promotion gate and the live page.
 
 **Step 18.** A 45-second demo video ("my breed model knows when it doesn't know"), a write-up, and tag `v1.0.0`.
+
+Implementation notes: the engineering write-up is [WRITEUP.md](WRITEUP.md) and the release notes are in [CHANGELOG.md](../CHANGELOG.md). The package and API are at version 1.0.0. Release: merge to main, rerun `make cards` with the final champion, then tag `v1.0.0` on main. The demo video script and my article stay out of the repo (git-ignored).
 
 ## Deferred
 
