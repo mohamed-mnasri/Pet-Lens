@@ -1,0 +1,75 @@
+version: 2
+
+models:
+  - name: stg_uploads
+    columns:
+      - name: upload_id
+        data_tests: [unique, not_null]
+  - name: stg_predictions
+    columns:
+      - name: prediction_id
+        data_tests: [unique, not_null]
+      - name: outcome
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [accept, no_clear_breed, review]
+  - name: stg_label_events
+    columns:
+      - name: label_event_id
+        data_tests: [unique, not_null]
+      - name: action
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [accept, fix, reject, unsure, skip]
+  - name: stg_review_cards
+    columns:
+      - name: card_id
+        data_tests: [unique, not_null]
+  - name: stg_eval_runs
+    columns:
+      - name: eval_run_id
+        data_tests: [unique, not_null]
+  - name: stg_model_registry
+    columns:
+      - name: run_id
+        data_tests: [unique, not_null]
+  - name: stg_detections
+    columns:
+      - name: detection_id
+        data_tests: [unique, not_null]
+  - name: stg_pets
+    columns:
+      - name: pet_id
+        data_tests: [unique, not_null]
+  - name: stg_identity_events
+    columns:
+      - name: identity_event_id
+        data_tests: [unique, not_null]
+      - name: pet_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_pets')
+                field: pet_id
+  - name: stg_vlm_tags
+    columns:
+      - name: vlm_tag_id
+        data_tests: [unique, not_null]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ok, parse_failed]
+  - name: stg_eval_metrics
+  - name: stg_eval_class_metrics
+  - name: stg_eval_images
+    columns:
+      - name: eval_run_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_eval_runs')
+                field: eval_run_id
+  - name: stg_dataset_counts

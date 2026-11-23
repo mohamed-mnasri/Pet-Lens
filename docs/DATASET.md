@@ -79,6 +79,7 @@ In a sample of 50 Ragdoll files, the licences were CC BY-SA 4.0 (16), CC BY 2.0 
 
 **Rules for using it:**
 
+- Walk each category plus one level of subcategories (deeper with `--depth`), skipping subcategories named like art, drawings or toys. Only the 1024 px thumbnail is downloaded, since that's all that gets stored.
 - Use the [MediaWiki API](https://www.mediawiki.org/wiki/Wikimedia_APIs/Access_policy) with a User-Agent that names the project and gives contact details. Throttle requests and cache everything, so a rerun doesn't fetch the same file twice.
 - Allowlist CC0, public domain, CC BY and CC BY-SA. Anything else gets skipped.
 - Store the author, licence and file URL in the manifest, and generate an attribution list from it. Images never go into the repo.
@@ -119,7 +120,7 @@ I'll run a learning curve before collecting more. If in-domain accuracy has stop
 
 ## Splits
 
-All images that share a group id go into the same split. The group id is, in order of preference: the cat, then the video, then the near-duplicate cluster, then the Commons uploader. Splits are stratified by class, use a fixed seed, and never reassign an image once it has a split.
+All images that share a group id go into the same split. In the code (`petlens.data.dataset`), a group is a pHash near-duplicate cluster joined with the Commons photographer (the file's author, or the uploader when the author is missing; bulk-transfer accounts upload many photographers' work, so the uploader alone over-groups). Splits are picked from a hash of the group id with a fixed seed, so they're stable and roughly stratified rather than exactly stratified. Oxford keeps its official test split; Commons groups are held out 15% for the unseen-source and domestic tests and 10% for real-world calibration; the training pool is split 80 / 10 / 10 into train, validation and calibration. Unknown-breed images always go to their own test set and are grouped by near-duplicates only. The group id is, in order of preference: the cat, then the video, then the near-duplicate cluster, then the Commons uploader. Splits are stratified by class, use a fixed seed, and never reassign an image once it has a split.
 
 | Split | Source | Used for |
 | --- | --- | --- |
@@ -197,7 +198,9 @@ repo\data\
   sources.yaml   breeds.yaml   manifests\<dataset_version>.parquet
 ```
 
-Manifest columns: `image_id`, `source`, `source_ref`, `licence`, `attribution`, `species`, `breed`, `label_origin`, `group_id`, `cat_id`, `video_id`, `frame_idx`, `width`, `height`, `phash`, `bbox`, `flags`, `split`, `added_in`.
+Manifest columns: `image_id`, `source`, `source_ref`, `licence`, `attribution`, `species`, `breed`, `label_origin`, `group_id`, `uploader`, `cat_id`, `video_id`, `frame_idx`, `width`, `height`, `phash`, `bbox`, `flags`, `source_split`, `split`, `added_in`.
+
+`source_split` is the split the source itself published (Oxford's `trainval` or `test`), kept so the in-domain test stays comparable to published results. `width` and `height` are of the stored copy. `bbox` is normalised `[x0, y0, x1, y1]`; for Oxford it comes from the trimap. `uploader` is the Commons account that uploaded the file, used for grouping. Per-source manifests are written to `processed\sources\<source>\` with a `report.md`, and the dataset-version manifest is built from them.
 
 `dataset_version` is the date plus a short hash of the manifest. Every model in the registry records the dataset version it was trained on.
 

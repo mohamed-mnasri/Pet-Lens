@@ -1,0 +1,27 @@
+snapshots:
+  - name: snap_label_status
+    description: History of each review card's state (pending, then done), for label status over time.
+    relation: ref('stg_review_cards')
+    config:
+      schema: snapshots
+      unique_key: card_id
+      strategy: check
+      check_cols: [state, answered_at]
+
+  - name: snap_pet_assignment
+    description: History of which pet each detected animal belongs to (merges, splits, moves).
+    relation: ref('stg_detections')
+    config:
+      schema: snapshots
+      unique_key: detection_id
+      strategy: check
+      check_cols: [pet_id]
+
+  - name: snap_pets
+    description: History of each pet's name and status.
+    relation: ref('stg_pets')
+    config:
+      schema: snapshots
+      unique_key: pet_id
+      strategy: check
+      check_cols: [pet_name, status, merged_into]

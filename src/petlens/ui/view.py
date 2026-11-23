@@ -1,0 +1,242 @@
+"""Pure helpers for the pages: upload pre-checks, wording and drawing. No Streamlit here,
+so they are easy to test."""
+
+from __future__ import annotations
+
+import io
+from typing import Any
+
+from PIL import Image, ImageDraw, ImageFont
+
+from petlens.api.ingest import sniff
+from petlens.data.quality import box_flags, pixel_flags
+
+BADGES = {
+    "accept": ("Breed", "green"),
+    "no_clear_breed": ("No clear breed", "orange"),
+    "review": ("Not sure", "gray"),
+}
+
+
+def precheck(name: str, data: bytes, limits: dict[str, float]) -> tuple[str, str | None]:
+    """Return (kind, problem) before anything is sent. ``problem`` is None when it's fine.
+
+    The API checks everything again; this just saves an upload that would be refused.
+    """
+    ft = sniff(data[:32])
+    if ft is None:
+        return "unknown", f"{name}: not a JPEG, PNG, WebP, MP4, MOV or WebM file"
+    limit = limits["photo_max_bytes"] if ft.kind == "photo" else limits["video_max_bytes"]
+    if len(data) > limit:
+        return ft.kind, f"{name}: over the {limit / 2**20:.0f} MB {ft.kind} limit"
+    if ft.kind == "photo":
+        try:
+            with Image.open(io.BytesIO(data)) as im:
+                w, h = im.size
+        except Exception:
+            return ft.kind, f"{name}: the photo can't be read"
+        if w * h > limits["photo_max_pixels"]:
+            mp = limits["photo_max_pixels"] / 1e6
+            return ft.kind, f"{name}: {w * h / 1e6:.0f} megapixels, over the {mp:.0f} MP limit"
+    return ft.kind, None
+
+
+def nice(label: str | None) -> str:
+    return (label or "").replace("_", " ").title()
+
+
+def headline(p: dict[str, Any]) -> str:
+    """One line for a decision, in the words the page shows."""
+    if p["outcome"] == "accept":
+        also = f" (or {nice(p['also'])})" if p.get("also") else ""
+        return f"Looks like a {nice(p['label'])}{also}, {p['confidence']:.0%}"
+    if p["outcome"] == "no_clear_breed":
+        return "Domestic cat, no clear breed" if p["species"] == "cat" else "No clear breed"
+    return "Not sure: sent to review"
+
+
+def badge(p: dict[str, Any]) -> tuple[str, str]:
+    return BADGES[p["outcome"]]
+
+
+def limits_text(limits: dict[str, float]) -> str:
+    return (
+        f"Photos: JPEG, PNG or WebP, up to {limits['photo_max_bytes'] / 2**20:.0f} MB and "
+        f"{limits['photo_max_pixels'] / 1e6:.0f} MP. Clips: MP4, MOV or WebM, up to "
+        f"{limits['video_max_bytes'] / 2**20:.0f} MB and {limits['video_max_seconds']:.0f} s."
+    )
+
+
+PHOTO_GUIDE = (
+    "**For the best answer:** a clear, well-lit colour photo with the whole cat or dog in "
+    "frame, ideally from the front so both the face and the body show. Close-ups of paws "
+    "or tails, black-and-white photos and blurry shots give weak answers."
+)
+
+TIPS = {
+    "grayscale": "This looks black and white. Colour helps a lot with breeds.",
+    "blurry": "This looks blurry. A sharper photo will give a better answer.",
+    "cut_off": "Only part of the animal is in the photo. Try one with the whole body.",
+    "small_animal": "The animal is small in the photo. Move closer or crop around it.",
+}
+
+
+def photo_tips(frame: bytes, detections: list[dict[str, Any]]) -> list[str]:
+    """Plain tips when a photo is weak in the ways that hurt the answer."""
+    with Image.open(io.BytesIO(frame)) as im:
+        flags = pixel_flags(im)
+    animals = [d for d in detections if d.get("species") in ("cat", "dog")]
+    if animals:
+        boxes = [box_flags((d["x0"], d["y0"], d["x1"], d["y1"])) for d in animals]
+        # Only nag about framing when no animal in the photo is framed well.
+        if all(boxes):
+            flags += sorted({f for b in boxes for f in b})
+    return [TIPS[f] for f in flags if f in TIPS]
+
+
+def draw_boxes(frame: bytes, detections: list[dict[str, Any]], labels: dict[str, str]) -> bytes:
+    """Draw each detection's box (normalised coordinates) with its label on the frame."""
+    with Image.open(io.BytesIO(frame)) as im:
+        img = im.convert("RGB")
+    w, h = img.size
+    draw = ImageDraw.Draw(img)
+    width = max(2, round(max(w, h) / 300))
+    font = ImageFont.load_default(size=max(12, round(max(w, h) / 40)))
+    for d in detections:
+        box = (d["x0"] * w, d["y0"] * h, d["x1"] * w, d["y1"] * h)
+        draw.rectangle(box, outline=(255, 140, 0), width=width)
+        text = labels.get(d["id"], d["species"])
+        left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+        tx, ty = box[0], max(0.0, box[1] - (bottom - top) - 2 * width)
+        draw.rectangle(
+            (tx, ty, tx + right - left + 2 * width, ty + bottom + width), fill=(255, 140, 0)
+        )
+        draw.text((tx + width, ty), text, fill=(0, 0, 0), font=font)
+    out = io.BytesIO()
+    img.save(out, "PNG")
+    return out.getvalue()
+
+
+def detection_labels(run: dict[str, Any]) -> dict[str, str]:
+    """Short label per detection: its own answer, or its clip group's answer."""
+    by_det = {p["detection_id"]: p for p in run["predictions"] if p.get("detection_id")}
+    by_group = {p["group_idx"]: p for p in run["predictions"] if p.get("group_idx") is not None}
+    out = {}
+    for d in run["detections"]:
+        p = by_det.get(d["id"]) or by_group.get(d.get("group_idx"))
+        if p is None:
+            out[d["id"]] = d["species"]
+        elif p["outcome"] == "accept":
+            out[d["id"]] = nice(p["label"])
+        else:
+            out[d["id"]] = badge(p)[0].lower()
+        if d.get("group_idx") is not None:
+            out[d["id"]] = f"#{d['group_idx'] + 1} {out[d['id']]}"
+    return out
+
+
+def job_progress(job: dict[str, Any]) -> float:
+    total = job.get("progress_total") or 0
+    return (
+        min(1.0, job["progress_done"] / total) if total else (1.0 if job["state"] == "done" else 0)
+    )
+
+
+QUEUE_NAMES = {
+    "commons": "Web photos",
+    "batch": "My batches",
+    "audit": "Blind audit",
+    "check": "Check",
+}
+
+
+def stats_text(stats: dict[str, Any]) -> str:
+    pending = stats.get("pending", {})
+    left = sum(pending.values())
+    parts = [f"{left} cards left"]
+    parts += [f"{QUEUE_NAMES.get(q, q)} {n}" for q, n in sorted(pending.items()) if q != "check"]
+    parts.append(f"{stats.get('answered', 0)} answered")
+    acc = stats.get("reviewer_accuracy")
+    if acc is not None:
+        parts.append(
+            f"your accuracy on check cards {acc:.0%} "
+            f"({stats['checks_correct']}/{stats['checks_answered']})"
+        )
+    return " · ".join(parts)
+
+
+def option_label(label: str) -> str:
+    if label == "not_pet":
+        return "Not a cat or dog"
+    if label == "domestic_cat":
+        return "Domestic / no clear breed"
+    return nice(label)
+
+
+def counts_text(counts: dict[str, int]) -> str:
+    parts = " · ".join(f"{nice(b)} {n}" for b, n in counts.items())
+    return f"Loaded so far: {parts} ({sum(counts.values())} photos)"
+
+
+# --- Model Health (Step 11): everything comes from the dbt marts -----------------------
+
+TEST_SET_NAMES = {
+    "golden": "Golden set",
+    "test_in_domain": "Oxford test",
+    "test_unseen_source": "Unseen sources",
+    "test_domestic": "Domestic cats",
+    "test_unknown": "Unknown breeds",
+}
+
+
+def pct(value: float | None) -> str:
+    return "" if value is None else f"{value:.1%}"
+
+
+def champion_line(registry: list[dict[str, Any]]) -> str:
+    best = next((r for r in registry if r["is_champion"]), None)
+    if best is None:
+        return "No champion yet. Run `make register` and `make promote`."
+    since = str(best.get("promoted_at") or best["registered_at"])[:10]
+    return f"Serving **{best['run_id']}** (data {best['dataset_version']}), champion since {since}."
+
+
+def accuracy_rows(accuracy: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """One display row per species and test set, with the 95% range on top-1."""
+    out = []
+    for a in accuracy:
+        top1 = pct(a["top1"])
+        if a["top1"] is not None and a["top1_lo"] is not None:
+            top1 += f" ({a['top1_lo']:.0%} to {a['top1_hi']:.0%})"
+        special = a["false_breed_claim_rate"] or a["unknown_rejection_rate"]
+        out.append(
+            {
+                "Species": a["species"],
+                "Test set": TEST_SET_NAMES.get(a["test_set"], a["test_set"]),
+                "Photos": str(a["n"]),
+                "Top-1 (95% range)": top1,
+                "Answered": pct(a["coverage"]),
+                "Right when answered": pct(a["selective_accuracy"]),
+                "Claim / rejection rate": pct(special),
+            }
+        )
+    return out
+
+
+# --- Pets (Step 15) -------------------------------------------------------------------
+
+
+def pet_title(pet: dict[str, Any]) -> str:
+    icon = "🐱" if pet["species"] == "cat" else "🐶"
+    return f"{icon} {pet['name'] or 'New ' + pet['species'] + ' (not named yet)'}"
+
+
+def pet_caption(pet: dict[str, Any]) -> str:
+    parts = [f"{pet['photos']} photo{'s' if pet['photos'] != 1 else ''}"]
+    if pet.get("first_seen"):
+        first, last = str(pet["first_seen"])[:10], str(pet["last_seen"])[:10]
+        parts.append(f"seen {first}" if first == last else f"seen {first} to {last}")
+    if pet.get("consensus_breed"):
+        breed = pet["consensus_breed"].replace("_", " ").title()
+        parts.append(f"usually called {breed} ({pet['consistency']:.0%} of photos)")
+    return " · ".join(parts)

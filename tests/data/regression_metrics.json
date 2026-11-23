@@ -1,0 +1,17 @@
+{
+  "cat/test_domestic/coverage": 0.0,
+  "cat/test_domestic/ece": 0.0005,
+  "cat/test_domestic/macro_f1": 1.0,
+  "cat/test_domestic/top1": 1.0,
+  "cat/test_domestic/top3": 1.0,
+  "cat/test_in_domain/coverage": 0.9683,
+  "cat/test_in_domain/ece": 0.0664,
+  "cat/test_in_domain/macro_f1": 0.8703,
+  "cat/test_in_domain/top1": 0.873,
+  "cat/test_in_domain/top3": 1.0,
+  "dog/test_in_domain/coverage": 0.977,
+  "dog/test_in_domain/ece": 0.0617,
+  "dog/test_in_domain/macro_f1": 0.9042,
+  "dog/test_in_domain/top1": 0.908,
+  "dog/test_in_domain/top3": 0.9885
+}

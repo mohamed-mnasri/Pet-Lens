@@ -49,3 +49,9 @@ jobs:
 
       - name: Tests
         run: uv run pytest
+
+      - name: dbt build on fixtures
+        run: |
+          uv sync --locked --group dbt
+          uv run python -m petlens.eval.fixtures
+          uv run python -m petlens.eval.dbt_run build

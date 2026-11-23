@@ -1,0 +1,24 @@
+# Streamlit settings for the PetLens pages (make ui).
+[server]
+address = "127.0.0.1"   # local only
+headless = true
+maxUploadSize = 25      # MB: the clip limit; the browser refuses anything bigger
+
+[client]
+toolbarMode = "minimal"   # no Deploy button
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+primaryColor = "#C8562A"            # warm terracotta for main actions
+backgroundColor = "#FAF7F2"
+secondaryBackgroundColor = "#F1EBE2"
+textColor = "#1F2430"
+linkColor = "#A9431E"
+font = "sans-serif"
+baseRadius = "0.7rem"
+buttonRadius = "0.6rem"
+borderColor = "#E4DACC"
+showWidgetBorder = true

@@ -1,0 +1,14 @@
+# Connection from environment variables, with the defaults of the local Docker database.
+# On a PC where Postgres runs on another port, set PETLENS_DB_PORT (e.g. 5433).
+petlens:
+  target: local
+  outputs:
+    local:
+      type: postgres
+      host: "{{ env_var('PETLENS_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('PETLENS_DB_PORT', '5432') | as_number }}"
+      user: "{{ env_var('PETLENS_DB_USER', 'petlens') }}"
+      password: "{{ env_var('PETLENS_DB_PASSWORD', 'petlens') }}"
+      dbname: "{{ env_var('PETLENS_DB_NAME', 'petlens') }}"
+      schema: analytics
+      threads: 4

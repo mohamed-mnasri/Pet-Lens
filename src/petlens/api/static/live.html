@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PetLens Live</title>
+<style>
+  :root {
+    --bg: #FAF7F2; --card: #FFFFFF; --ink: #2B2620; --muted: #6B6459;
+    --accent: #C8562A; --line: #E7DFD3; --ok: #2F7D4F; --warn: #A86B12;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1C1916; --card: #26221E; --ink: #F1EBE2; --muted: #B3A99B; --line: #3A342D; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.8rem; margin: 0; }
+  .sub { color: var(--muted); margin: 4px 0 20px; }
+  .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden;
+           aspect-ratio: 4 / 3; width: 100%; }
+  video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0; }
+  button { font: inherit; padding: 8px 18px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--card); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .stats { display: flex; gap: 18px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .stats b { color: var(--ink); }
+  #answers { display: grid; gap: 10px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+          padding: 10px 14px; }
+  .card small { color: var(--muted); }
+  #msg { color: var(--warn); min-height: 1.5em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🐾 PetLens Live</h1>
+  <p class="sub">Point your webcam at a cat or dog. Answers are averaged over the last few
+    frames. Nothing is recorded: at most one frame every 10 seconds is kept while an animal
+    is in view.</p>
+  <div class="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div class="bar">
+    <button id="start" class="primary">Start camera</button>
+    <button id="stop" disabled>Stop</button>
+    <div class="stats">
+      <span>FPS <b id="fps">0.0</b></span>
+      <span>Round trip <b id="rtt">–</b></span>
+      <span>Model <b id="model">–</b></span>
+    </div>
+  </div>
+  <p id="msg"></p>
+  <div id="answers"></div>
+</main>
+<script>
+const video = document.getElementById("video");
+const overlay = document.getElementById("overlay");
+const ctx = overlay.getContext("2d");
+const grab = document.createElement("canvas");
+const session = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2);
+let running = false;
+let stream = null;
+const times = [];
+
+function label(a) {
+  if (a.outcome === "accept") {
+    return `${a.label}${a.also ? " or " + a.also : ""} ${(a.confidence * 100).toFixed(0)}%`;
+  }
+  if (a.outcome === "no_clear_breed") {
+    return a.species === "cat" ? "Domestic cat, no clear breed" : "Dog, no clear breed";
+  }
+  return `Not sure (${a.species})`;
+}
+
+function draw(animals) {
+  const w = video.videoWidth, h = video.videoHeight;
+  overlay.width = w; overlay.height = h;
+  ctx.clearRect(0, 0, w, h);
+  ctx.lineWidth = Math.max(2, w / 240);
+  ctx.font = `${Math.max(14, w / 40)}px system-ui, sans-serif`;
+  for (const a of animals) {
+    const [x0, y0, x1, y1] = a.box;
+    const colour = a.outcome === "accept" ? "#2F7D4F" : a.outcome === "review" ? "#A86B12" : "#C8562A";
+    ctx.strokeStyle = colour;
+    ctx.strokeRect(x0 * w, y0 * h, (x1 - x0) * w, (y1 - y0) * h);
+    const text = label(a);
+    const tw = ctx.measureText(text).width + 12;
+    ctx.fillStyle = colour;
+    ctx.fillRect(x0 * w, Math.max(0, y0 * h - w / 30), tw, w / 30);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, x0 * w + 6, Math.max(w / 40, y0 * h - w / 120));
+  }
+  const list = document.getElementById("answers");
+  list.replaceChildren(...animals.map((a) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    const top = a.top3.map((t) => `${t.label} ${(t.p * 100).toFixed(0)}%`).join(", ");
+    div.innerHTML = `<b></b><br><small></small>`;
+    div.querySelector("b").textContent = label(a);
+    div.querySelector("small").textContent =
+      `Animal ${a.track + 1} · averaged over ${a.frames} frame${a.frames === 1 ? "" : "s"} · top 3: ${top}`;
+    return div;
+  }));
+}
+
+async function loop() {
+  while (running) {
+    if (!video.videoWidth) { await new Promise((r) => setTimeout(r, 100)); continue; }
+    const scale = Math.min(1, 640 / Math.max(video.videoWidth, video.videoHeight));
+    grab.width = Math.round(video.videoWidth * scale);
+    grab.height = Math.round(video.videoHeight * scale);
+    grab.getContext("2d").drawImage(video, 0, 0, grab.width, grab.height);
+    const blob = await new Promise((r) => grab.toBlob(r, "image/jpeg", 0.85));
+    const form = new FormData();
+    form.append("file", blob, "frame.jpg");
+    form.append("session", session);
+    const started = performance.now();
+    try {
+      const res = await fetch("/live/frame", { method: "POST", body: form });
+      const body = await res.json();
+      if (!res.ok) {
+        document.getElementById("msg").textContent = body.detail || "The API refused the frame.";
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      document.getElementById("msg").textContent = body.animals.length ? "" : "No cat or dog in view.";
+      draw(body.animals);
+      document.getElementById("model").textContent = `${(body.seconds * 1000).toFixed(0)} ms`;
+    } catch (err) {
+      document.getElementById("msg").textContent = "The API isn't answering. Is make api running?";
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    const now = performance.now();
+    document.getElementById("rtt").textContent = `${(now - started).toFixed(0)} ms`;
+    times.push(now);
+    while (times.length > 30) times.shift();
+    if (times.length > 1) {
+      const fps = (times.length - 1) / ((times[times.length - 1] - times[0]) / 1000);
+      document.getElementById("fps").textContent = fps.toFixed(1);
+    }
+  }
+}
+
+document.getElementById("start").onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+  } catch (err) {
+    document.getElementById("msg").textContent = "No camera access: " + err.message;
+    return;
+  }
+  video.srcObject = stream;
+  running = true;
+  document.getElementById("start").disabled = true;
+  document.getElementById("stop").disabled = false;
+  loop();
+};
+
+document.getElementById("stop").onclick = () => {
+  running = false;
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  document.getElementById("start").disabled = false;
+  document.getElementById("stop").disabled = true;
+};
+</script>
+</body>
+</html>
