@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
@@ -16,7 +17,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
@@ -27,14 +28,15 @@ from petlens.api import ingest, service
 from petlens.config import Settings, get_settings
 from petlens.data import own
 from petlens.data.catalog import load_breeds
-from petlens.data.imaging import stored_path
+from petlens.data.imaging import decode, stored_path
 from petlens.db import models as m
 from petlens.db.session import get_engine
 from petlens.jobs import queue
 from petlens.jobs.handlers import batch_files
 from petlens.pets import manage, profiles
 from petlens.review import answers
-from petlens.vision.pipeline import Analyzer
+from petlens.vision import live
+from petlens.vision.pipeline import Analyzer, analyse_image
 
 log = logging.getLogger(__name__)
 HEX64 = re.compile(r"[0-9a-f]{64}")
@@ -188,7 +190,7 @@ def create_app(
             raise HTTPException(422, f"Unknown breed: {breed}")
         if file.size is not None:
             ingest.check_size(file.size, "photo", cfg)
-        data = await file.read(cfg.photo_max_bytes + 1)
+        data = file.file.read(cfg.photo_max_bytes + 1)  # sync: runs in the thread pool
         ingest.check_size(len(data), "photo", cfg)
         ingest.check_type(data, "photo")
         ingest.check_photo_pixels(data, cfg)
@@ -294,6 +296,80 @@ def create_app(
     def confirm_detection(detection_id: uuid.UUID, session: DB) -> dict[str, str]:
         _pet_change(session, lambda: manage.confirm(session, detection_id))
         return {"status": "ok"}
+
+    # --- live camera (Step 16) --------------------------------------------------------
+
+    live_sessions: dict[str, live.LiveSession] = {}
+    page = Path(__file__).parent / "static" / "live.html"
+
+    @app.get("/live", response_class=HTMLResponse)
+    def live_page() -> HTMLResponse:
+        return HTMLResponse(page.read_text(encoding="utf-8"))
+
+    @app.post("/live/frame")
+    def live_frame(
+        session: DB,
+        file: Annotated[UploadFile, File()],
+        session_id: Annotated[str, Form(alias="session")],
+    ) -> dict[str, object]:
+        vlm_busy = session.scalar(
+            select(m.Job.id).where(m.Job.kind == "vlm_screen", m.Job.state == "running").limit(1)
+        )
+        if vlm_busy is not None:
+            raise HTTPException(409, "The VLM screener is using the GPU. Live view waits for it.")
+        data = file.file.read(cfg.photo_max_bytes + 1)  # sync: runs in the thread pool
+        ingest.check_size(len(data), "photo", cfg)
+        try:
+            img = decode(data)
+        except ValueError as exc:
+            raise HTTPException(422, "That frame isn't an image") from exc
+        live.mark_live(cfg.data_dir)
+        analyzer = get_analyzer()
+        res = analyse_image(analyzer, img)
+        key = session_id[:64]
+        state = live_sessions.get(key)
+        if state is None:
+            for old in [
+                k for k, v in live_sessions.items() if v.last_seen < time.monotonic() - 120
+            ]:
+                del live_sessions[old]
+            state = live.LiveSession(
+                analyzer.policy,
+                {s: h.classes for s, h in analyzer.heads.items()},
+                analyzer.close_pairs,
+            )
+            live_sessions[key] = state
+        smoothed = state.update(res.animals)
+        state.frame_seconds.append(res.seconds)
+        if state.should_store(bool(res.animals)):
+            service.store_live_frame(session, cfg, res, analyzer.version, len(data))
+            session.commit()
+        w, h = res.image.size
+        catalog = load_breeds()
+
+        def name(label: str | None) -> str | None:
+            if label is None:
+                return None
+            return catalog.get(label).name if label != "domestic_cat" else "Domestic cat"
+
+        return {
+            "animals": [
+                {
+                    "track": a.track,
+                    "species": a.species,
+                    "box": [a.box[0] / w, a.box[1] / h, a.box[2] / w, a.box[3] / h],
+                    "outcome": a.decision.outcome,
+                    "label": name(a.decision.label),
+                    "also": name(a.decision.also),
+                    "confidence": a.decision.confidence,
+                    "frames": a.frames,
+                    "top3": [{"label": name(lb), "p": p} for lb, p in a.decision.top3],
+                }
+                for a in smoothed
+            ],
+            "seconds": res.seconds,
+            "fps": state.fps(),
+        }
 
     @app.get("/model-health")
     def model_health(session: DB) -> dict[str, object]:

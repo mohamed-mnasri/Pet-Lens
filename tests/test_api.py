@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import os
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -429,3 +430,44 @@ def test_training_photos(client: TestClient) -> None:
         "/training-photos", data={"breed": "ragdoll"}, files={"file": ("a.gif", b"GIF89a")}
     )
     assert gif.status_code == 415
+
+
+@pytest.mark.db
+def test_pets_from_uploads_and_my_changes(client: TestClient) -> None:
+    for _ in range(2):
+        assert (
+            client.post("/predict/image", files={"file": ("c.jpg", _cat_photo())}).status_code
+            == 200
+        )
+    pets = client.get("/pets").json()
+    assert len(pets) == 1 and pets[0]["photos"] == 2  # the same cat twice: one pet
+    pet_id = pets[0]["id"]
+    assert pets[0]["consensus_breed"] == "ragdoll" and pets[0]["consistency"] == 1.0
+    assert client.post(f"/pets/{pet_id}/name", json={"name": "Mochi"}).status_code == 200
+    detail = client.get(f"/pets/{pet_id}").json()
+    first = detail["all_photos"][0]["detection_id"]
+    split = client.post(f"/pets/{pet_id}/split", json={"detection_ids": [first]})
+    assert split.status_code == 200
+    new_id = split.json()["pet_id"]
+    assert client.post("/pets/merge", json={"source": new_id, "target": pet_id}).status_code == 200
+    assert client.post(f"/pets/{new_id}/name", json={"name": "x"}).status_code == 409  # merged
+    assert client.post(f"/detections/{first}/confirm").status_code == 200
+    assert client.get(f"/pets/{uuid.uuid4()}").status_code == 404
+    assert _scalar("SELECT count(*) FROM identity_event WHERE origin = 'me'") >= 4
+
+
+@pytest.mark.db
+def test_live_frames_are_smoothed_and_rarely_stored(client: TestClient, tmp_path: Path) -> None:
+    assert "getUserMedia" in client.get("/live").text
+    answers = []
+    for _ in range(3):
+        r = client.post(
+            "/live/frame", files={"file": ("f.jpg", _cat_photo())}, data={"session": "tab-1"}
+        )
+        assert r.status_code == 200, r.text
+        answers.append(r.json()["animals"])
+    last = answers[-1][0]
+    assert last["track"] == 0 and last["frames"] == 3 and last["label"] == "Ragdoll"
+    assert 0 <= last["box"][0] < last["box"][2] <= 1
+    assert _scalar("SELECT count(*) FROM upload WHERE kind = 'live'") == 1  # one per 10 s
+    assert (tmp_path / "live.active").exists()  # the VLM job waits while this is fresh

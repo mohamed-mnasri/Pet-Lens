@@ -463,6 +463,7 @@ def main() -> None:
         st.error(f"The API isn't answering at {base_url}. Start it with `make api`.")
         st.stop()
     limits = api.limits()
+    st.link_button("📹 Open the live camera", f"{base_url.rstrip('/')}/live")
     upload, pets, review, training, health, jobs = st.tabs(
         [
             "📷 Identify",

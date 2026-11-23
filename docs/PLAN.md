@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 16. Live camera page
+**Current step:** 17. One-command demo and docs
 **Last updated:** 2026-11-23
 
 ## Principles I'm holding myself to
@@ -32,7 +32,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 13 | VLM image screener | 3: VLM and pets | Done in code (needs Ollama runs on my PC) |
 | 14 | VLM breed-naming experiment | 3: VLM and pets | Done in code (result goes in the README) |
 | 15 | Pet profiles (Phase 3 gate) | 3: VLM and pets | Done in code (re-ID numbers need my named pets) |
-| 16 | Live camera page | 4: Live and presentation | Not started |
+| 16 | Live camera page | 4: Live and presentation | Done (FPS shown on the page; my RTX 2060 number goes in the README) |
 | 17 | One-command demo, README, model and dataset cards, ADRs | 4: Live and presentation | Not started |
 | 18 | Demo video and write-up | 4: Live and presentation | Not started |
 
@@ -391,6 +391,8 @@ Implementation notes:
 - The same per-frame pipeline on the webcam, with probabilities smoothed over the last few frames for each appearance group.
 - The VLM is never loaded at the same time.
 - Webcam FPS is measured.
+
+Implementation notes: `make api`, then open http://127.0.0.1:8000/live (or the "Open the live camera" button on the page). The page is plain HTML and JavaScript served by the API, so no new packages: the browser takes the webcam, sends a 640 px JPEG to `POST /live/frame`, waits for the answer and sends the next, so the FPS it shows is the real end-to-end rate (with the round trip and the model time per frame). The API runs the same `analyse_image` as an upload; animals are followed across frames by appearance (same species, embedding similarity 0.70 or more, a running average of the embedding), and each track's answer is the policy's decision on its probabilities and kNN distance averaged over its last 5 frames, so one odd frame doesn't flip the label. A track is dropped after 8 frames unseen. At most one frame every 10 seconds is kept while an animal is in view (an upload of kind `live`, matched to my pets like any other); nothing is recorded. The VLM never shares the GPU with it: the camera refuses frames while a `vlm_screen` job runs, and each camera frame refreshes a marker file that makes the VLM job wait until the page has been closed for 30 seconds.
 
 **Step 17. Demo and docs.**
 

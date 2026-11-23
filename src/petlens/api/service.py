@@ -261,6 +261,29 @@ def process_video(
     return upload.id
 
 
+def store_live_frame(
+    session: Session, settings: Settings, res: ImageResult, version: str, jpeg_size: int
+) -> uuid.UUID:
+    """Keep one camera frame (already analysed) as an upload of kind ``live``."""
+    stored = encode_webp(res.image, DEFAULT_POLICY)
+    upload = m.Upload(
+        kind="live",
+        original_name="camera.jpg",
+        mime="image/jpeg",
+        size_bytes=jpeg_size,
+        sha256=sha256_bytes(stored),
+        width=res.image.width,
+        height=res.image.height,
+        status="received",
+    )
+    session.add(upload)
+    session.flush()
+    _store_frame(session, settings, upload, 0, 0.0, res, version, True)
+    assign_upload(session, upload.id)
+    upload.status = "done"
+    return upload.id
+
+
 def record_rejection(
     session: Session,
     reason: str,

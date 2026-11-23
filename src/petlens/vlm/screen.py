@@ -37,6 +37,7 @@ from petlens.data.imaging import stored_path
 from petlens.data.manifest import ManifestRow
 from petlens.data.vlm_flags import SCREENED_SOURCES, TAGS_PATH
 from petlens.db import models as m
+from petlens.vision.live import live_active
 
 PROMPT_VERSION = "screen-v1"
 DEFAULT_MODEL = "qwen3-vl:4b"
@@ -209,6 +210,8 @@ def run(
     images = data_dir / "processed" / "images"
     counts = {"ok": 0, "parse_failed": 0, "missing": 0}
     for i, r in enumerate(todo, 1):
+        while live_active(data_dir):  # the camera page has the GPU: wait for it to close
+            time.sleep(5)
         path = stored_path(images, r.image_id)
         if not path.exists():
             counts["missing"] += 1
