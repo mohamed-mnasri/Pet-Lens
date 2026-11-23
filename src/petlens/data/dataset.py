@@ -62,6 +62,7 @@ EXCLUDE_FLAGS = {
     "dup_of_test",
     "dup_of_known",
     "review_rejected",  # I said it isn't a cat or dog
+    "review_unsure",  # I said "not sure": usually a poor photo, so it's ignored completely
 }
 
 
@@ -132,7 +133,8 @@ def read_reviews(path: Path) -> dict[str, dict[str, str]]:
 
 def apply_reviews(rows: list[ManifestRow], reviews: dict[str, dict[str, str]]) -> list[ManifestRow]:
     """Confirmed or corrected labels take my answer and ``label_origin = "me"``;
-    "not a cat or dog" is excluded; "not sure" and skipped photos stay out of training."""
+    "not a cat or dog" and "not sure" (or skipped) photos are excluded completely: no
+    training, no test sets, no evidence."""
     out = []
     for r in rows:
         rev = reviews.get(r.image_id)

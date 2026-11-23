@@ -1,5 +1,6 @@
 """Baseline heads, calibration, metrics and embedding plumbing (no torch needed)."""
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -91,6 +92,29 @@ def test_train_end_to_end_on_synthetic_embeddings() -> None:
     report = train.render_report("run", "v1", "fake", metrics)
     assert "| test_in_domain |" in report and "Learning curve" in report
     assert "False breed claim rate on domestic cats" in report
+    pair = next(
+        p for p in cat["close_pairs"]["test_in_domain"] if p["pair"] == ["birman", "ragdoll"]
+    )
+    # Up to 4 test photos each (near-copies of training photos are dropped first).
+    assert pair["n"] == pair["n_a"] + pair["n_b"] and 0 < pair["n"] <= 8
+    assert pair["right"] > 0.7
+    assert f"| test_in_domain | birman / ragdoll | {pair['n']} |" in report
+
+
+def test_compare_shows_the_last_two_runs(tmp_path: Path) -> None:
+    assert "no training runs" in train.compare_runs(tmp_path)
+    found = {"pair": ["birman", "ragdoll"], "n": 40, "n_a": 20, "n_b": 20, "right": 0.8}
+    pairs = {"test_in_domain": [found | {"a_as_b": 3, "b_as_a": 2}]}
+    old = {"cat": {"classes": ["birman", "ragdoll"]}}
+    new = {"cat": {"classes": ["birman", "ragdoll"], "close_pairs": pairs}}
+    for i, metrics in enumerate([old, new]):
+        run = tmp_path / "runs" / f"2026112{i}T000000Z-v"
+        run.mkdir(parents=True)
+        info = {"run_id": run.name, "metrics": metrics}
+        (run / "metrics.json").write_text(json.dumps(info), encoding="utf-8")
+    text = train.compare_runs(tmp_path)
+    assert text.index("20261120") < text.index("20261121")
+    assert "trained before it existed" in text and "| 80.0% | 3 of 20 | 2 of 20 |" in text
 
 
 def test_crop_for_model_uses_box_and_pads_square() -> None:

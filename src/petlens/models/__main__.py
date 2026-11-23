@@ -19,7 +19,11 @@ def main(argv: list[str] | None = None) -> None:
     e.add_argument("--device", default=None, help="cuda or cpu (default: cuda if available)")
     sub.add_parser("screen", help="screen Commons breed photos with the v0 head")
     sub.add_parser("train", help="train and evaluate the heads")
+    sub.add_parser("compare", help="look-alike breeds in the last two training runs")
     args = parser.parse_args(argv)
+    if args.stage == "compare":
+        print(train.compare_runs(get_settings().models_dir))
+        return
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     settings = get_settings()

@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos compare install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -81,6 +81,10 @@ data-commons:
 data-build:
 	uv run python -m petlens.data build
 
+# My own training photos per breed (added from the page's "Add training photos" tab).
+own-photos:
+	uv run python -m petlens.data.own
+
 # Flag weak photos (black and white, blurry, animal cut off or tiny). Uses the detector.
 data-quality:
 	uv run --extra ml python -m petlens.data.quality
@@ -97,6 +101,10 @@ screen:
 
 train:
 	uv run python -m petlens.models train
+
+# Look-alike breeds (Ragdoll / Birman, ...) in the last two training runs: before and after.
+compare:
+	uv run python -m petlens.models compare
 
 # Step 5: analyse photos or clips, e.g. make analyse FILES="D:/petlens-data/footage/cat.mp4"
 analyse:

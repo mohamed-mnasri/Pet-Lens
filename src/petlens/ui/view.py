@@ -171,3 +171,8 @@ def option_label(label: str) -> str:
     if label == "domestic_cat":
         return "Domestic / no clear breed"
     return nice(label)
+
+
+def counts_text(counts: dict[str, int]) -> str:
+    parts = " · ".join(f"{nice(b)} {n}" for b, n in counts.items())
+    return f"Loaded so far: {parts} ({sum(counts.values())} photos)"

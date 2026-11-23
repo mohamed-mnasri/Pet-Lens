@@ -191,6 +191,72 @@ def jobs_tab(api: api_client.ApiClient) -> None:
             st.caption(f"Error (attempt {j['attempts']}/{j['max_attempts']}): {j['error'][:200]}")
 
 
+def training_tab(api: api_client.ApiClient) -> None:
+    st.caption(
+        "Add a batch of photos of one breed for training. They are never shown as answers. "
+        "Use your own photos, or ones you have permission or a Creative Commons licence for."
+    )
+    so_far = api.training_photo_counts()
+    if so_far:
+        st.caption(view.counts_text(so_far))
+    breeds = api.breeds()
+    names = {b["id"]: f"{b['name']} ({b['species']})" for b in breeds}
+    batch = st.session_state.setdefault("train_batch", 0)
+    breed = st.selectbox(
+        "Breed of every photo in this batch",
+        list(names),
+        index=None,
+        format_func=names.__getitem__,
+        placeholder="Pick or type a breed",
+        key=f"train-breed-{batch}",
+    )
+    files = st.file_uploader(
+        "Photos",
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,
+        key=f"train-files-{batch}",
+        disabled=breed is None,
+    )
+    done = st.session_state.get("train_result")
+    if done and done["batch"] == batch:
+        show_training_result(done)
+        if st.button("Start the next batch", type="primary"):
+            st.session_state["train_batch"] = batch + 1
+            st.session_state.pop("train_result", None)
+            st.rerun()
+        return
+    if breed and files and st.button(f"Add {len(files)} photos as {names[breed]}", type="primary"):
+        bar = st.progress(0.0, text="Checking photos…")
+        results = []
+        for i, f in enumerate(files, 1):
+            try:
+                r = api.add_training_photo(breed, f.name, f.getvalue())
+            except api_client.ApiError as exc:
+                r = {"status": "left_out", "reason": exc.detail}
+            results.append((f.name, r))
+            bar.progress(i / len(files), text=f"Checked {i} of {len(files)}")
+        st.session_state["train_result"] = {
+            "batch": batch,
+            "breed": names[breed],
+            "results": results,
+        }
+        st.rerun()
+
+
+def show_training_result(done: dict[str, Any]) -> None:
+    results = done["results"]
+    by = {k: [n for n, r in results if r["status"] == k] for k in ("added", "already", "left_out")}
+    st.success(
+        f"{done['breed']}: added {len(by['added'])}, already there {len(by['already'])}, "
+        f"left out {len(by['left_out'])}."
+    )
+    if by["left_out"]:
+        with st.expander("Why some photos were left out"):
+            for name, r in results:
+                if r["status"] == "left_out":
+                    st.write(f"**{name}**: {r['reason']}")
+
+
 def main() -> None:
     st.title("🐾 PetLens")
     base_url = os.environ.get("PETLENS_API_URL", api_client.DEFAULT_URL)
@@ -199,11 +265,15 @@ def main() -> None:
         st.error(f"The API isn't answering at {base_url}. Start it with `make api`.")
         st.stop()
     limits = api.limits()
-    upload, review, jobs = st.tabs(["Upload", "Review", "Batch jobs"])
+    upload, review, training, jobs = st.tabs(
+        ["Upload", "Review", "Add training photos", "Batch jobs"]
+    )
     with upload:
         upload_tab(api, limits)
     with review:
         review_tab(api)
+    with training:
+        training_tab(api)
     with jobs:
         jobs_tab(api)
 

@@ -2,8 +2,8 @@
 
 - Reviews of Commons photos go to ``data/reviews/labels.parquet`` (committed). The
   dataset build applies them: confirmed or corrected labels get ``label_origin = "me"``,
-  "not a cat or dog" is excluded, and "not sure" keeps the photo out of training.
-- Reviewed animals from my own batches become a ``review`` source: a crop of each
+  "not a cat or dog" and "not sure" photos are excluded completely.
+- Animals from my own batches I confirmed or corrected become a ``review`` source: a crop of each
   (from the face-blurred stored frame) is stored like any dataset image and listed in
   ``processed/sources/review/manifest.parquet``. Blind-audit answers are recorded but
   flagged ``audit_only`` so they are never trained on.

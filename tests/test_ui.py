@@ -175,6 +175,12 @@ class _FakeApi:
     def image(self, url: str) -> bytes:
         return _jpeg()
 
+    def breeds(self) -> list[dict[str, str]]:
+        return [{"id": "ragdoll", "name": "Ragdoll", "species": "cat"}]
+
+    def training_photo_counts(self) -> dict[str, int]:
+        return {"birman": 2, "ragdoll": 5}
+
     def jobs(self, limit: int = 20) -> list[dict[str, Any]]:
         return [
             {
@@ -206,6 +212,8 @@ def test_page_renders_limits_and_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     # The review tab: the question, my accuracy, and the three swipe buttons.
     assert any(s.value == "Is this a Bengal?" for s in at.subheader)
     assert any("accuracy on check cards 50%" in c.value for c in at.caption)
+    assert any("Ragdoll 5" in c.value and "7 photos" in c.value for c in at.caption)
+    assert any(s.label.startswith("Breed of every photo") for s in at.selectbox)
     labels = [b.label for b in at.button]
     assert {"Wrong", "Not sure", "Correct"} <= set(labels)
 

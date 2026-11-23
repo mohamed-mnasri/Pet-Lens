@@ -20,7 +20,7 @@ from petlens import contracts as c
 from petlens.api.app import create_app
 from petlens.config import Settings
 from petlens.data.catalog import load_breeds
-from petlens.data.dataset import apply_reviews
+from petlens.data.dataset import EXCLUDE_FLAGS, apply_reviews
 from petlens.data.manifest import ManifestRow, read_manifest
 from petlens.db import migrate
 from petlens.db import models as m
@@ -106,6 +106,7 @@ def test_reviews_change_labels_and_training_pool() -> None:
     assert (out["a"].breed, out["a"].label_origin) == ("domestic_cat", "me")
     assert "review_rejected" in out["b"].flags
     assert "review_unsure" in out["c"].flags
+    assert "review_unsure" in EXCLUDE_FLAGS  # "not sure" is ignored completely
     assert out["e"].label_origin == "me"
     admitted: frozenset[str] = frozenset({"c" * 64})
     assert in_training_pool(out["e"], frozenset())  # reviewed, so in

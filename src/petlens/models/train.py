@@ -122,6 +122,41 @@ def drop_leaks(d: SpeciesData, threshold: float = LEAK_COSINE) -> dict[str, int]
     return dropped
 
 
+def pair_confusion(
+    head: SpeciesHead,
+    x: FloatArray,
+    y: IntArray,
+    classes: list[str],
+    pairs: list[tuple[str, str]],
+) -> list[dict[str, object]]:
+    """How well look-alike breeds are told apart: among test photos of either breed, how
+    many get the right one as top-1, and how many get mistaken for the other."""
+    if not len(y):
+        return []
+    pred = head.predict_proba(x).argmax(axis=1)
+    out: list[dict[str, object]] = []
+    for a, b in pairs:
+        if a not in classes or b not in classes:
+            continue
+        ia, ib = classes.index(a), classes.index(b)
+        mask = (y == ia) | (y == ib)
+        n = int(mask.sum())
+        if not n:
+            continue
+        out.append(
+            {
+                "pair": [a, b],
+                "n": n,
+                "n_a": int((y == ia).sum()),
+                "n_b": int((y == ib).sum()),
+                "right": float((pred[mask] == y[mask]).mean()),
+                "a_as_b": int(((y == ia) & (pred == ib)).sum()),
+                "b_as_a": int(((y == ib) & (pred == ia)).sum()),
+            }
+        )
+    return out
+
+
 def train(
     rows: list[ManifestRow],
     emb: dict[str, np.ndarray],
@@ -149,10 +184,14 @@ def train(
         )
         heads[species] = head
         per_test = {}
+        pairs: dict[str, list[dict[str, object]]] = {}
         for test in TEST_SETS:
             x, y = get(test)
             if len(y):
                 per_test[test] = evaluate(head, x, y)
+                found = pair_confusion(head, x, y, d.classes, close_pairs)  # type: ignore[arg-type]
+                if found:
+                    pairs[test] = found
         curve = []
         xt, yt = get("train")
         xi, yi = get("test_in_domain")
@@ -192,6 +231,7 @@ def train(
             ),
             "leaks_dropped": leaks,
             "tests": per_test,
+            "close_pairs": pairs,
             "learning_curve": curve,
         }
         metrics[species]["policy"] = _tune_and_evaluate_policy(  # type: ignore[index]
@@ -258,6 +298,29 @@ def _tune_and_evaluate_policy(
     return out
 
 
+def pair_lines(pairs: dict[str, list[dict[str, object]]]) -> list[str]:
+    """The look-alike table for a report (or ``make compare``)."""
+    if not pairs:
+        return []
+    lines = [
+        "",
+        "Look-alike breeds (top-1 on test photos of either breed):",
+        "",
+        "| Test set | Pair | n | Right | A taken for B | B taken for A |",
+        "| --- | --- | ---: | ---: | ---: | ---: |",
+    ]
+    for test, found in pairs.items():
+        for p in found:
+            pair = p["pair"]
+            assert isinstance(pair, list)
+            a, b = pair
+            lines.append(
+                f"| {test} | {a} / {b} | {p['n']} | {p['right']:.1%} | "
+                f"{p['a_as_b']} of {p['n_a']} | {p['b_as_a']} of {p['n_b']} |"
+            )
+    return lines
+
+
 def render_report(run_id: str, dataset_version: str, model: str, metrics: dict[str, object]) -> str:
     lines = [
         f"# Baseline run {run_id}",
@@ -300,6 +363,7 @@ def render_report(run_id: str, dataset_version: str, model: str, metrics: dict[s
                 f"| {test} | {int(c['n'])} | {c['top1']:.3f} | {c['top3']:.3f} | "
                 f"{c['macro_f1']:.3f} | {u['ece']:.3f} | {c['ece']:.3f} |"
             )
+        lines += pair_lines(m.get("close_pairs", {}))
         pol = m.get("policy")
         if pol:
             t = pol["thresholds"]
@@ -374,3 +438,20 @@ def save_run(
     (out / "report.md").write_text(render_report(run_id, dataset_version, model, metrics), "utf-8")
     logging.getLogger(__name__).info("saved run %s", out)
     return out
+
+
+def compare_runs(models_dir: Path, last: int = 2) -> str:
+    """The look-alike tables of the last runs, oldest first, for a before/after look."""
+    runs = sorted((models_dir / "runs").glob("*/metrics.json"))[-last:]
+    if not runs:
+        return "no training runs yet; run `make train` first"
+    lines: list[str] = []
+    for path in runs:
+        info = json.loads(path.read_text(encoding="utf-8"))
+        lines += [f"## Run {info['run_id']}"]
+        for species, m in info["metrics"].items():
+            if isinstance(m, dict) and "close_pairs" in m:
+                lines += [f"### {species}", *pair_lines(m["close_pairs"]), ""]
+            elif isinstance(m, dict) and "classes" in m:
+                lines += [f"### {species}", "(no look-alike table: trained before it existed)", ""]
+    return "\n".join(lines)

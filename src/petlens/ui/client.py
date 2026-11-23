@@ -76,6 +76,20 @@ class ApiClient:
         result: dict[str, Any] = self._json(self.http.get("/review/stats"))
         return result
 
+    def breeds(self) -> list[dict[str, str]]:
+        result: list[dict[str, str]] = self._json(self.http.get("/breeds"))
+        return result
+
+    def add_training_photo(self, breed: str, name: str, data: bytes) -> dict[str, Any]:
+        result: dict[str, Any] = self._json(
+            self.http.post("/training-photos", data={"breed": breed}, files={"file": (name, data)})
+        )
+        return result
+
+    def training_photo_counts(self) -> dict[str, int]:
+        result: dict[str, int] = self._json(self.http.get("/training-photos"))
+        return result
+
     def image(self, url: str) -> bytes:
         r = self.http.get(url)
         if r.status_code >= 400:

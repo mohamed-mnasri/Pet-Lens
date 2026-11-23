@@ -407,3 +407,25 @@ def test_jobs_list_and_limits(client: TestClient, tmp_path: Path) -> None:
         == 422
     )
     assert client.get("/limits").json()["video_max_seconds"] == 10.0
+
+
+@pytest.mark.db
+def test_training_photos(client: TestClient) -> None:
+    breeds = client.get("/breeds").json()
+    assert {"id": "ragdoll", "name": "Ragdoll", "species": "cat"} in breeds
+    assert all(b["id"] != "scottish_fold" for b in breeds)  # unknown-breed test only
+    r = client.post(
+        "/training-photos", data={"breed": "ragdoll"}, files={"file": ("a.jpg", _cat_photo())}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] in ("added", "left_out")
+    counts = client.get("/training-photos").json()
+    assert counts == ({"ragdoll": 1} if r.json()["status"] == "added" else {})
+    bad = client.post(
+        "/training-photos", data={"breed": "unicorn"}, files={"file": ("a.jpg", _cat_photo())}
+    )
+    assert bad.status_code == 422
+    gif = client.post(
+        "/training-photos", data={"breed": "ragdoll"}, files={"file": ("a.gif", b"GIF89a")}
+    )
+    assert gif.status_code == 415

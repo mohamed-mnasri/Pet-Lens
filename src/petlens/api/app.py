@@ -15,7 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -24,6 +24,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from petlens import contracts as c
 from petlens.api import ingest, service
 from petlens.config import Settings, get_settings
+from petlens.data import own
+from petlens.data.catalog import load_breeds
 from petlens.data.imaging import stored_path
 from petlens.db import models as m
 from petlens.db.session import get_engine
@@ -146,6 +148,37 @@ def create_app(
             "video_max_bytes": cfg.video_max_bytes,
             "video_max_seconds": cfg.video_max_seconds,
         }
+
+    breeds = load_breeds()
+
+    @app.get("/breeds")
+    def list_breeds() -> list[dict[str, str]]:
+        """The breeds the model trains on, for the page's breed picker."""
+        return [
+            {"id": b.id, "name": b.name, "species": b.species}
+            for b in breeds.breeds
+            if b.role == "train"
+        ]
+
+    @app.post("/training-photos")
+    async def add_training_photo(
+        breed: Annotated[str, Form()], file: Annotated[UploadFile, File()]
+    ) -> dict[str, str | None]:
+        """One of my own photos of a known breed, for training (``petlens.data.own``)."""
+        if breed not in {b["id"] for b in list_breeds()}:
+            raise HTTPException(422, f"Unknown breed: {breed}")
+        if file.size is not None:
+            ingest.check_size(file.size, "photo", cfg)
+        data = await file.read(cfg.photo_max_bytes + 1)
+        ingest.check_size(len(data), "photo", cfg)
+        ingest.check_type(data, "photo")
+        ingest.check_photo_pixels(data, cfg)
+        result = own.add_photo(data, breed, cfg.data_dir, breeds, get_analyzer().detector)
+        return {"status": result.status, "reason": result.reason, "image_id": result.image_id}
+
+    @app.get("/training-photos")
+    def training_photo_counts() -> dict[str, int]:
+        return own.counts(cfg.data_dir)
 
     folders = {
         "train": cfg.processed_dir / "images",
