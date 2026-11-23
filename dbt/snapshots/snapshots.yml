@@ -1,0 +1,9 @@
+snapshots:
+  - name: snap_label_status
+    description: History of each review card's state (pending, then done), for label status over time.
+    relation: ref('stg_review_cards')
+    config:
+      schema: snapshots
+      unique_key: card_id
+      strategy: check
+      check_cols: [state, answered_at]

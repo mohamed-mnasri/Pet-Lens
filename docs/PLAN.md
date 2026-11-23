@@ -2,8 +2,8 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 9. Swipe review app (reviewing), then 10. Evaluation module and dbt
-**Last updated:** 2026-11-22
+**Current step:** 11. Model registry, golden set and promotion gate
+**Last updated:** 2026-11-23
 
 ## Principles I'm holding myself to
 
@@ -26,7 +26,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 7 | Job queue and worker | 1: Core | Done (UI progress view comes with Step 8) |
 | 8 | Upload page with evidence panel (Phase 1 gate) | 1: Core | Done (tag v0.2.0 after merging to main) |
 | 9 | Swipe review app, blind audit and reviewer checks | 2: Data engineering | Done in code (waiting on my first 50+ reviews) |
-| 10 | Evaluation module and dbt marts | 2: Data engineering | Not started |
+| 10 | Evaluation module and dbt marts | 2: Data engineering | Done (`dbt build` runs in CI on fixtures) |
 | 11 | Model registry, golden set and promotion gate | 2: Data engineering | Not started |
 | 12 | Fine-tuning ablations (Phase 2 gate) | 2: Data engineering | Not started |
 | 13 | VLM image screener | 3: VLM and pets | Not started |
@@ -308,6 +308,11 @@ Implementation notes:
 - Model contracts on the marts, plus dbt unit tests.
 
 Done when: `dbt build` is green locally and in CI on fixtures.
+
+Implementation notes:
+
+- 10a (evaluation): `make eval` loads the latest run's heads, its manifest, embeddings and `policy.yaml`, and writes one `eval_run` with `eval_metric` (top-1 with Wilson intervals, top-3, macro-F1, ECE, risk at 50/80/100% coverage, policy coverage, accuracy when accepted, no-clear-breed and review rates, false breed claim rate, unknown rejection rate), `eval_class_metric` (recall with Wilson intervals, precision) and `eval_image` (one row per test image with its prediction, decision and photo flags). Near-copies of training images are left out, as in training. The manifest's composition goes to `dataset_count` (replaced per version). Migration 0005.
+- 10b (dbt): `dbt/` holds staging views over the operational and evaluation tables, incremental `int_predictions` (by time) and `int_label_events` (by the append-only id), a `snap_label_status` snapshot of review cards, and seven marts with enforced contracts: accuracy, confused pairs, failure slices (by source, label origin, breed and photo flag), abstention (test sets and live uploads per day), review throughput (with check-card accuracy), label sources and dataset composition. Two dbt unit tests cover confused pairs and review throughput. `make dbt` reads DATABASE_URL (so port 5433 works), and CI runs `dbt build` on fixtures from `python -m petlens.eval.fixtures`. dbt is its own dependency group.
 
 **Step 11. Registry and promotion.**
 

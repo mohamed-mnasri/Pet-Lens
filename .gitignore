@@ -42,3 +42,9 @@ Thumbs.db
 !/data/screening/*.parquet
 !/data/reviews/
 !/data/reviews/*.parquet
+
+# dbt (Step 10)
+/dbt/target/
+/dbt/logs/
+/dbt/dbt_packages/
+/dbt/.user.yml

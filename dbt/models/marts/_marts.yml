@@ -1,0 +1,144 @@
+version: 2
+
+models:
+  - name: mart_accuracy
+    description: Headline metrics per evaluation, species and test set.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: eval_run_id, data_type: uuid, constraints: [{type: not_null}]}
+      - {name: run_id, data_type: text}
+      - {name: dataset_version, data_type: text}
+      - {name: evaluated_at, data_type: timestamp with time zone}
+      - {name: species, data_type: text}
+      - {name: test_set, data_type: text}
+      - {name: n, data_type: bigint}
+      - {name: top1, data_type: double precision}
+      - {name: top1_lo, data_type: double precision}
+      - {name: top1_hi, data_type: double precision}
+      - {name: top3, data_type: double precision}
+      - {name: macro_f1, data_type: double precision}
+      - {name: ece, data_type: double precision}
+      - {name: coverage, data_type: double precision}
+      - {name: selective_accuracy, data_type: double precision}
+      - {name: false_breed_claim_rate, data_type: double precision}
+      - {name: unknown_rejection_rate, data_type: double precision}
+
+  - name: mart_confused_pairs
+    description: True breed taken for another, per evaluation and test set.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: eval_run_id, data_type: uuid}
+      - {name: species, data_type: text}
+      - {name: test_set, data_type: text}
+      - {name: true_label, data_type: text}
+      - {name: predicted_label, data_type: text}
+      - {name: n_confused, data_type: bigint}
+      - {name: n_label, data_type: bigint}
+      - {name: share_of_label, data_type: double precision}
+
+  - name: mart_failure_slices
+    description: Top-1 error rate by photo source, label origin, breed and photo flag.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: eval_run_id, data_type: uuid}
+      - {name: species, data_type: text}
+      - {name: test_set, data_type: text}
+      - name: slice_type
+        data_type: text
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [source, label_origin, breed, flag]
+      - {name: slice_value, data_type: text}
+      - {name: n, data_type: bigint}
+      - {name: errors, data_type: bigint}
+      - {name: error_rate, data_type: double precision}
+
+  - name: mart_abstention
+    description: Answer, no-clear-breed and review rates on test sets and on live uploads.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: scope, data_type: text}
+      - {name: eval_run_id, data_type: uuid}
+      - {name: test_set, data_type: text}
+      - {name: day, data_type: date}
+      - {name: species, data_type: text}
+      - {name: n, data_type: bigint}
+      - {name: accept_rate, data_type: double precision}
+      - {name: no_clear_breed_rate, data_type: double precision}
+      - {name: review_rate, data_type: double precision}
+
+  - name: mart_review_throughput
+    description: Swipe answers per day, answer mix, median time, and check-card accuracy.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: day, data_type: date, data_tests: [unique]}
+      - {name: answers, data_type: bigint}
+      - {name: accepted, data_type: bigint}
+      - {name: fixed, data_type: bigint}
+      - {name: rejected, data_type: bigint}
+      - {name: unsure, data_type: bigint}
+      - {name: skipped, data_type: bigint}
+      - {name: median_review_ms, data_type: double precision}
+      - {name: checks_answered, data_type: bigint}
+      - {name: checks_right, data_type: bigint}
+
+  - name: mart_label_sources
+    description: Images per source and label origin in each dataset version.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: dataset_version, data_type: text}
+      - {name: source, data_type: text}
+      - {name: label_origin, data_type: text}
+      - {name: images, data_type: bigint}
+      - {name: in_train_split, data_type: bigint}
+      - {name: excluded, data_type: bigint}
+
+  - name: mart_dataset_composition
+    description: Images per breed and split in each dataset version.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: dataset_version, data_type: text}
+      - {name: species, data_type: text}
+      - {name: breed, data_type: text}
+      - {name: split, data_type: text}
+      - {name: n, data_type: bigint}
+      - {name: share_of_species_split, data_type: double precision}
+
+unit_tests:
+  - name: confused_pairs_count_only_wrong_known_breeds
+    model: mart_confused_pairs
+    given:
+      - input: ref('stg_eval_images')
+        format: dict
+        rows:
+          - {eval_run_id: "00000000-0000-0000-0000-000000000001", species: cat, test_set: t, true_label: birman, predicted_label: ragdoll, known_breed: true, top1_correct: false}
+          - {eval_run_id: "00000000-0000-0000-0000-000000000001", species: cat, test_set: t, true_label: birman, predicted_label: birman, known_breed: true, top1_correct: true}
+          - {eval_run_id: "00000000-0000-0000-0000-000000000001", species: cat, test_set: t, true_label: birman, predicted_label: birman, known_breed: true, top1_correct: true}
+          - {eval_run_id: "00000000-0000-0000-0000-000000000001", species: cat, test_set: t, true_label: korat, predicted_label: siamese, known_breed: false, top1_correct: false}
+    expect:
+      format: dict
+      rows:
+        - {eval_run_id: "00000000-0000-0000-0000-000000000001", species: cat, test_set: t, true_label: birman, predicted_label: ragdoll, n_confused: 1, n_label: 3}
+
+  - name: review_throughput_counts_actions_and_checks
+    model: mart_review_throughput
+    given:
+      - input: ref('int_label_events')
+        format: dict
+        rows:
+          - {created_day: "2026-11-23", action: accept, queue: commons, review_ms: 1000, proposed_label: bengal, truth: null}
+          - {created_day: "2026-11-23", action: unsure, queue: commons, review_ms: 3000, proposed_label: bengal, truth: null}
+          - {created_day: "2026-11-23", action: accept, queue: check, review_ms: 2000, proposed_label: birman, truth: birman}
+          - {created_day: "2026-11-23", action: fix, queue: check, review_ms: 4000, proposed_label: persian, truth: ragdoll}
+    expect:
+      format: dict
+      rows:
+        - {day: "2026-11-23", answers: 4, accepted: 2, fixed: 1, rejected: 0, unsure: 1, skipped: 0, median_review_ms: 2500, checks_answered: 2, checks_right: 1}

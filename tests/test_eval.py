@@ -89,3 +89,12 @@ def test_results_are_stored(tmp_path: Path) -> None:
         total = s.scalar(select(func.sum(m.DatasetCount.n)))
         assert total == len(rows)  # replaced per version, not doubled
     engine.dispose()
+
+
+def test_dbt_gets_the_database_from_database_url() -> None:
+    from petlens.eval import dbt_run
+
+    env = dbt_run.env_for("postgresql+psycopg://me:pw@db.local:5433/pets")
+    assert (env["PETLENS_DB_HOST"], env["PETLENS_DB_PORT"]) == ("db.local", "5433")
+    assert (env["PETLENS_DB_USER"], env["PETLENS_DB_NAME"]) == ("me", "pets")
+    assert (dbt_run.DBT_DIR / "dbt_project.yml").exists()

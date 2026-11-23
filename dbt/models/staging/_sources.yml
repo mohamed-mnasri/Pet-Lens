@@ -1,0 +1,17 @@
+version: 2
+
+sources:
+  - name: petlens
+    description: Operational and evaluation tables written by the app (Alembic migrations).
+    schema: public
+    tables:
+      - name: upload
+      - name: prediction
+      - name: label_event
+        description: Append-only answers from the swipe review.
+      - name: review_card
+      - name: eval_run
+      - name: eval_metric
+      - name: eval_class_metric
+      - name: eval_image
+      - name: dataset_count

@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: int_predictions
+    description: Upload predictions, incremental on created_at.
+    columns:
+      - name: prediction_id
+        data_tests: [unique, not_null]
+  - name: int_label_events
+    description: Review answers with their queue, incremental on the append-only id.
+    columns:
+      - name: label_event_id
+        data_tests: [unique, not_null]
