@@ -148,7 +148,7 @@ def main(argv: list[str] | None = None) -> None:
 
     parser = argparse.ArgumentParser(prog="python -m petlens.data.openverse")
     parser.add_argument("--per-breed", type=int, default=30)
-    parser.add_argument("--species", choices=["cat", "dog"], default="cat")
+    parser.add_argument("--species", choices=["cat", "dog", "all"], default="all")
     parser.add_argument("--breed", action="append", help="only these breeds (repeatable)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(message)s")

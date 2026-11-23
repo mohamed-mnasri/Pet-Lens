@@ -133,8 +133,8 @@ def read_reviews(path: Path) -> dict[str, dict[str, str]]:
 
 def apply_reviews(rows: list[ManifestRow], reviews: dict[str, dict[str, str]]) -> list[ManifestRow]:
     """Confirmed or corrected labels take my answer and ``label_origin = "me"``;
-    "not a cat or dog" and "not sure" (or skipped) photos are excluded completely: no
-    training, no test sets, no evidence."""
+    "not a cat or dog" is excluded; "not sure" photos are flagged and then dropped by the
+    build; skipped photos stay as they were."""
     out = []
     for r in rows:
         rev = reviews.get(r.image_id)
@@ -145,8 +145,10 @@ def apply_reviews(rows: list[ManifestRow], reviews: dict[str, dict[str, str]]) -
             out.append(replace(r, breed=rev["label"], label_origin="me", flags=flags))
         elif rev["action"] == "reject":
             out.append(replace(r, flags=sorted({*r.flags, "review_rejected"})))
-        else:
+        elif rev["action"] == "unsure":
             out.append(replace(r, flags=sorted({*r.flags, "review_unsure"})))
+        else:  # skipped: as if I hadn't seen it
+            out.append(r)
     return out
 
 
@@ -369,6 +371,8 @@ def build(
     if not rows:
         raise RuntimeError("no source manifests found; run `make data-oxford` first")
     rows = apply_reviews(rows, read_reviews(repo_data_dir / "reviews" / "labels.parquet"))
+    # "Not sure" photos are gone for good (``make review-export`` deleted their files).
+    rows = [r for r in rows if "review_unsure" not in r.flags]
     rows = add_phashes(rows, data_dir)
     rows = quality.apply_checks(rows, data_dir)
     rows = assign_groups(rows, breeds, policy)

@@ -53,12 +53,16 @@ def commons_cards(
     by_id = {r.image_id: r for r in rows}
     cards = []
     for s in results:
-        if s.decision not in ("review", "admit_and_review") or s.image_id not in by_id:
+        if s.image_id not in by_id:
             continue
         r = by_id[s.image_id]
+        # Openverse photos all get a card (I check every web search result once); Commons
+        # photos only when screening disagreed or sampled them.
+        if s.decision == "admit" and r.source != "openverse":
+            continue
         if is_weak(r):
             continue  # black and white, blurry, cut off, tiny: not worth a swipe
-        disagreed = s.decision == "review"
+        disagreed = s.decision == "review"  # admitted Openverse photos count as a sample
         if not disagreed:
             priority = PRIORITY_SAMPLE
         elif s.predicted == DOMESTIC:
@@ -68,7 +72,7 @@ def commons_cards(
         options = [s.predicted] if s.predicted != s.label else []
         cards.append(
             {
-                "ref": f"commons:{s.image_id}",
+                "ref": f"{'openverse' if r.source == 'openverse' else 'commons'}:{s.image_id}",
                 "queue": "commons",
                 "image_id": s.image_id,
                 "image_url": f"/images/train/{s.image_id}",

@@ -21,6 +21,7 @@ from petlens.api.app import create_app
 from petlens.config import Settings
 from petlens.data.catalog import load_breeds
 from petlens.data.dataset import EXCLUDE_FLAGS, apply_reviews
+from petlens.data.imaging import stored_path
 from petlens.data.manifest import ManifestRow, read_manifest
 from petlens.db import migrate
 from petlens.db import models as m
@@ -77,6 +78,10 @@ def test_commons_cards_follow_screening() -> None:
     assert made["a"]["priority"] < made["b"]["priority"] < made["c"]["priority"]
     assert made["b"]["suggested"] == "ragdoll" and made["b"]["options"] == ["birman"]
     assert made["a"]["x0"] == pytest.approx(0.1)
+    # Every Openverse photo gets a card, even when screening agreed.
+    web = [_row("e" * 64, "beagle", source="openverse", species="dog")]
+    (card,) = cards.commons_cards(web, [_screen("e" * 64, "beagle", "beagle", "admit")])
+    assert card["ref"] == f"openverse:{'e' * 64}" and card["species"] == "dog"
 
 
 def test_check_cards_show_the_truth_only_sometimes() -> None:
@@ -107,6 +112,8 @@ def test_reviews_change_labels_and_training_pool() -> None:
     assert "review_rejected" in out["b"].flags
     assert "review_unsure" in out["c"].flags
     assert "review_unsure" in EXCLUDE_FLAGS  # "not sure" is ignored completely
+    skipped = apply_reviews([rows[0]], {"a" * 64: {"action": "skip", "label": "bengal"}})
+    assert skipped == [rows[0]]
     assert out["e"].label_origin == "me"
     admitted: frozenset[str] = frozenset({"c" * 64})
     assert in_training_pool(out["e"], frozenset())  # reviewed, so in
@@ -149,6 +156,7 @@ def test_answers_become_label_events(sessions: sessionmaker[Session]) -> None:
         first = answers.next_card(s)
         assert first is not None and first.id == ids["a"]  # the easy domestic question
         assert first.question == "Is this a Bengal?"
+        assert answers.next_card(s, species="dog") is None
         assert "domestic_cat" in first.options and first.options[-1] == "not_pet"
         with pytest.raises(answers.ReviewError, match="Pick an answer"):
             answers.answer(s, ids["a"], c.ReviewIn(answer="wrong"))
@@ -211,11 +219,22 @@ def test_blind_audit_and_export(tmp_path: Path) -> None:
             select(m.ReviewCard.id).where(m.ReviewCard.ref == f"commons:{'a' * 64}")
         ).one()
         answers.answer(s, commons_id, c.ReviewIn(answer="wrong", label="domestic_cat"))
+        poor_id = s.scalars(
+            select(m.ReviewCard.id).where(m.ReviewCard.ref == f"commons:{'b' * 64}")
+        ).one()
+        answers.answer(s, poor_id, c.ReviewIn(answer="unsure"))
+        poor = stored_path(settings.processed_dir / "images", "b" * 64)
+        poor.parent.mkdir(parents=True, exist_ok=True)
+        poor.write_bytes(b"webp")
         s.commit()
         summary = export(s, settings, repo_data_dir=tmp_path / "repo")
-    assert "1 Commons reviews" in summary and "2 of my own photos" in summary
+    assert "2 Commons reviews" in summary and "2 of my own photos" in summary
+    assert "1 'not sure' photos deleted" in summary and not poor.exists()
     labels = pq.read_table(tmp_path / "repo" / "reviews" / "labels.parquet").to_pylist()
-    assert [(r["label"], r["action"]) for r in labels] == [("domestic_cat", "fix")]
+    assert sorted((r["label"], r["action"]) for r in labels) == [
+        ("domestic_cat", "fix"),
+        ("ragdoll", "unsure"),
+    ]
     own = read_manifest(settings.processed_dir / "sources" / "review" / "manifest.parquet")
     by_breed = {r.breed: r for r in own}
     assert set(by_breed) == {"ragdoll", "bengal"}

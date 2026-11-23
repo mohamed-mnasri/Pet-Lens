@@ -85,7 +85,7 @@ data-build:
 import-folders:
 	uv run --extra ml python -m petlens.data.folders --folder "$(FOLDER)" --licence "$(LICENCE)"
 
-# About 30 openly licensed photos per cat breed from Openverse (Step 9f).
+# About 30 openly licensed photos per cat and dog breed from Openverse (Step 9f).
 data-openverse:
 	uv run --extra ml python -m petlens.data.openverse --per-breed 30
 

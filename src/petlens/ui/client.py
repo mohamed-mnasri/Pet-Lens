@@ -60,8 +60,10 @@ class ApiClient:
         )
         return result
 
-    def review_next(self, queue: str | None = None) -> dict[str, Any] | None:
-        params = {"queue": queue} if queue else {}
+    def review_next(
+        self, queue: str | None = None, species: str | None = None
+    ) -> dict[str, Any] | None:
+        params = {k: v for k, v in {"queue": queue, "species": species}.items() if v}
         result: dict[str, Any] | None = self._json(self.http.get("/review/next", params=params))
         return result
 

@@ -142,7 +142,10 @@ def check_photos(
         if not (need_pixels or need_box):
             continue
         entry = dict(entry or {"pixel": [], "box": None, "detected": False})
-        with Image.open(stored_path(images, r.image_id)) as im:
+        path = stored_path(images, r.image_id)
+        if not path.exists():
+            continue  # deleted after a "not sure" review
+        with Image.open(path) as im:
             img = im.convert("RGB")
         if need_pixels:
             entry["pixel"] = pixel_flags(img, policy)

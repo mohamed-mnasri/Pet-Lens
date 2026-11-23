@@ -2,7 +2,8 @@
 
 - Reviews of Commons photos go to ``data/reviews/labels.parquet`` (committed). The
   dataset build applies them: confirmed or corrected labels get ``label_origin = "me"``,
-  "not a cat or dog" and "not sure" photos are excluded completely.
+  "not a cat or dog" photos are excluded, and "not sure" photos are deleted: their
+  stored copy is removed here and the build drops them from the dataset.
 - Animals from my own batches I confirmed or corrected become a ``review`` source: a crop of each
   (from the face-blurred stored frame) is stored like any dataset image and listed in
   ``processed/sources/review/manifest.parquet``. Blind-audit answers are recorded but
@@ -115,8 +116,15 @@ def own_row(card: m.ReviewCard, event: m.LabelEvent, settings: Settings) -> Mani
 def export(session: Session, settings: Settings, repo_data_dir: Path = REPO_DATA_DIR) -> str:
     commons: list[dict[str, Any]] = []
     own: list[ManifestRow] = []
-    skipped = 0
+    skipped = deleted = 0
     for card, event in latest_answers(session):
+        if card.queue == "commons" and card.image_id and event.action == "unsure":
+            # "Not sure" means a poor photo: delete the stored copy for good. The label
+            # row stays so the next build drops the photo and nothing re-adds it.
+            stored = stored_path(settings.processed_dir / "images", card.image_id)
+            if stored.exists():
+                stored.unlink()
+                deleted += 1
         if card.queue == "commons" and card.image_id:
             commons.append(
                 {
@@ -140,6 +148,7 @@ def export(session: Session, settings: Settings, repo_data_dir: Path = REPO_DATA
     pq.write_table(pa.Table.from_pylist(commons, schema=LABELS_SCHEMA), path)
     write_manifest(own, settings.processed_dir / "sources" / SOURCE_KEY / "manifest.parquet")
     note = f", {skipped} skipped (frame missing)" if skipped else ""
+    note += f", {deleted} 'not sure' photos deleted" if deleted else ""
     return (
         f"exported {len(commons)} Commons reviews to {path} and {len(own)} of my own "
         f"photos as the '{SOURCE_KEY}' source{note}. Run `make data-build` next."

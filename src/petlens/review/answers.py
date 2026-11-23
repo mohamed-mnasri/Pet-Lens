@@ -77,17 +77,23 @@ def picker(card: m.ReviewCard) -> list[str]:
     return out
 
 
-def _pending(session: Session, queue: str | None) -> int:
+def _pending(session: Session, queue: str | None, species: str | None = None) -> int:
     q = select(func.count()).select_from(m.ReviewCard).where(m.ReviewCard.state == "pending")
     if queue:
         q = q.where(m.ReviewCard.queue == queue)
+    if species:
+        q = q.where(m.ReviewCard.species == species)
     return int(session.execute(q).scalar_one())
 
 
-def next_card(session: Session, queue: str | None = None) -> c.CardView | None:
+def next_card(
+    session: Session, queue: str | None = None, species: str | None = None
+) -> c.CardView | None:
     q = select(m.ReviewCard).where(m.ReviewCard.state == "pending")
     if queue:
         q = q.where(m.ReviewCard.queue == queue)
+    if species:
+        q = q.where(m.ReviewCard.species == species)
     # Easy questions first; within a priority a stable shuffle, so check cards mix in.
     card = session.scalars(
         q.order_by(m.ReviewCard.priority, func.md5(m.ReviewCard.ref)).limit(1)
@@ -108,7 +114,7 @@ def next_card(session: Session, queue: str | None = None) -> c.CardView | None:
         question=question(card),
         options=picker(card),
         references=references(session, card.species, card.suggested),
-        pending=_pending(session, queue),
+        pending=_pending(session, queue, species),
     )
 
 

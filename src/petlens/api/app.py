@@ -197,8 +197,10 @@ def create_app(
         return FileResponse(path, media_type="image/webp")
 
     @app.get("/review/next", response_model=c.CardView | None)
-    def review_next(session: DB, queue: c.ReviewQueue | None = None) -> c.CardView | None:
-        return answers.next_card(session, queue)
+    def review_next(
+        session: DB, queue: c.ReviewQueue | None = None, species: c.Species | None = None
+    ) -> c.CardView | None:
+        return answers.next_card(session, queue, species)
 
     @app.post("/review/{card_id}", response_model=c.LabelEvent)
     def review_answer(card_id: uuid.UUID, body: c.ReviewIn, session: DB) -> c.LabelEvent:
