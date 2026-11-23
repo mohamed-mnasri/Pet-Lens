@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui data data-oxford data-commons data-build install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -58,6 +58,16 @@ jobs-status:
 # Upload page on http://127.0.0.1:8501 (Step 8). Needs make api running.
 ui:
 	uv run streamlit run src/petlens/ui/app.py
+
+# Swipe review (Step 9): queue Commons and check cards, then export reviewed labels.
+review-load:
+	uv run python -m petlens.review load
+
+review-export:
+	uv run python -m petlens.review export
+
+review-stats:
+	uv run python -m petlens.review stats
 
 # Dataset pipeline (Step 2). Safe to rerun: only new work is done.
 data: data-oxford data-commons data-build

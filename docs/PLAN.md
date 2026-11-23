@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 9. Swipe review app
+**Current step:** 9. Swipe review app (reviewing), then 10. Evaluation module and dbt
 **Last updated:** 2026-11-22
 
 ## Principles I'm holding myself to
@@ -25,7 +25,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 6 | Database schema, contracts, API, input limits and hardening | 1: Core | Done (API and limit tests run in CI against Postgres) |
 | 7 | Job queue and worker | 1: Core | Done (UI progress view comes with Step 8) |
 | 8 | Upload page with evidence panel (Phase 1 gate) | 1: Core | Done (tag v0.2.0 after merging to main) |
-| 9 | Swipe review app, blind audit and reviewer checks | 2: Data engineering | Not started |
+| 9 | Swipe review app, blind audit and reviewer checks | 2: Data engineering | Done in code (waiting on my first 50+ reviews) |
 | 10 | Evaluation module and dbt marts | 2: Data engineering | Not started |
 | 11 | Model registry, golden set and promotion gate | 2: Data engineering | Not started |
 | 12 | Fine-tuning ablations (Phase 2 gate) | 2: Data engineering | Not started |
@@ -285,6 +285,13 @@ Implementation notes:
   - Audit, golden-set and reviewer-check images are never trained on.
 
 Done when: a batch of 50+ real photos and clips goes in, gets reviewed in the swipe app, and the reviewed labels show up in the next dataset version's manifest with their origin recorded.
+
+Implementation notes:
+
+- 9a (cards): `review_card` (migration 0004) holds one card per photo to check, in four queues. `make review-load` queues the Commons cards from the latest screening (disagreements first when the model said domestic, then other disagreements, then the 5% sample) and reviewer-check cards (Oxford test photos, about 5% of all cards; half show the true breed and half a wrong one, so "correct" isn't always right). Review batches add a card per animal (per appearance group in clips), and a seeded 5% of confident answers become blind audit cards. `GET /review/next`, `POST /review/{id}` and `GET /review/stats` serve the page; each answer is an append-only `label_event` with origin `me`, the action (`accept`, `fix`, `reject` for "not a cat or dog", `unsure`, `skip`) and the time taken.
+- 9b (page): the Review tab shows the photo with its box, the question, three buttons with arrow-key shortcuts (→ correct, ← wrong, ↑ not sure), a picker after "wrong" (other top answers, domestic, not a cat or dog, skip) and four training photos of the suggested breed. Blind audit cards show only the picker. The header shows what's left and my accuracy on check cards.
+- 9c (into the data): `make review-export` writes my Commons reviews to `data/reviews/labels.parquet` (committed) and my reviewed batch animals as the `review` source (a crop of the face-blurred frame, licence `own-photo`, grouped per upload). `make data-build` then applies them: confirmed or corrected labels get `label_origin = me`, "not a cat or dog" is excluded, and "not sure" and blind-audit photos are never trained on. Check cards never change labels.
+- Not yet: the per-cat cap of 20 images waits for the pet identity steps, and the "which of my pets" question comes with them.
 
 **Step 10. Evaluation module and dbt.**
 

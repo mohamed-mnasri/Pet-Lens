@@ -38,9 +38,15 @@ def in_v0_training_pool(r: ManifestRow) -> bool:
     return r.source == "oxford" or r.breed == "domestic_cat"
 
 
+NEVER_TRAIN_FLAGS = {"review_unsure", "audit_only"}
+
+
 def in_training_pool(r: ManifestRow, admitted: frozenset[str]) -> bool:
-    """v0 pool plus the Commons images screening admitted."""
-    return in_v0_training_pool(r) or r.image_id in admitted
+    """v0 pool, the Commons images screening admitted, and labels I reviewed. Photos I
+    wasn't sure about and blind-audit answers are never trained on."""
+    if NEVER_TRAIN_FLAGS & set(r.flags):
+        return False
+    return in_v0_training_pool(r) or r.image_id in admitted or r.label_origin == "me"
 
 
 @dataclass

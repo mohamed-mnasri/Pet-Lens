@@ -40,3 +40,5 @@ Thumbs.db
 !/data/manifests/*.parquet
 !/data/screening/
 !/data/screening/*.parquet
+!/data/reviews/
+!/data/reviews/*.parquet

@@ -54,7 +54,14 @@ SPLITS = (
 )
 # Splits that are the same held-out partition, named by class. A group may span them.
 HELD_OUT = {"test_unseen_source", "test_domestic"}
-EXCLUDE_FLAGS = {"too_small", "near_black", "leak_train_test", "dup_of_test", "dup_of_known"}
+EXCLUDE_FLAGS = {
+    "too_small",
+    "near_black",
+    "leak_train_test",
+    "dup_of_test",
+    "dup_of_known",
+    "review_rejected",  # I said it isn't a cat or dog
+}
 
 
 @dataclass(frozen=True)
@@ -113,6 +120,31 @@ def load_source_manifests(data_dir: Path) -> list[ManifestRow]:
             seen.add(r.image_id)
             unique.append(r)
     return unique
+
+
+def read_reviews(path: Path) -> dict[str, dict[str, str]]:
+    """My reviews of existing dataset photos (``make review-export``), by image id."""
+    if not path.exists():
+        return {}
+    return {r["image_id"]: r for r in pq.read_table(path).to_pylist()}
+
+
+def apply_reviews(rows: list[ManifestRow], reviews: dict[str, dict[str, str]]) -> list[ManifestRow]:
+    """Confirmed or corrected labels take my answer and ``label_origin = "me"``;
+    "not a cat or dog" is excluded; "not sure" and skipped photos stay out of training."""
+    out = []
+    for r in rows:
+        rev = reviews.get(r.image_id)
+        if rev is None:
+            out.append(r)
+        elif rev["action"] in ("accept", "fix"):
+            flags = sorted({*r.flags, "reviewed"})
+            out.append(replace(r, breed=rev["label"], label_origin="me", flags=flags))
+        elif rev["action"] == "reject":
+            out.append(replace(r, flags=sorted({*r.flags, "review_rejected"})))
+        else:
+            out.append(replace(r, flags=sorted({*r.flags, "review_unsure"})))
+    return out
 
 
 def add_phashes(rows: list[ManifestRow], data_dir: Path) -> list[ManifestRow]:
@@ -333,6 +365,7 @@ def build(
     rows = load_source_manifests(data_dir)
     if not rows:
         raise RuntimeError("no source manifests found; run `make data-oxford` first")
+    rows = apply_reviews(rows, read_reviews(repo_data_dir / "reviews" / "labels.parquet"))
     rows = add_phashes(rows, data_dir)
     rows = assign_groups(rows, breeds, policy)
     rows = assign_splits(rows, breeds, previous, policy)
