@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     crop_long_edge: int = 384
     crop_max_bytes: int = 40_000
 
+    # Local VLM through Ollama (Steps 13 and 14). Batch jobs only, never with the camera.
+    ollama_url: str = "http://127.0.0.1:11434"
+    vlm_model: str = "qwen3-vl:4b"
+
     @property
     def raw_dir(self) -> Path:
         return self.data_dir / "raw"

@@ -16,4 +16,6 @@ sources:
       - name: eval_image
       - name: dataset_count
       - name: model_registry
+      - name: vlm_tag
+        description: VLM screener answers, one per image, prompt version and model.
         description: Every registered training run and which one is the champion.

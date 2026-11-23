@@ -35,6 +35,15 @@ models:
     columns:
       - name: run_id
         data_tests: [unique, not_null]
+  - name: stg_vlm_tags
+    columns:
+      - name: vlm_tag_id
+        data_tests: [unique, not_null]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [ok, parse_failed]
   - name: stg_eval_metrics
   - name: stg_eval_class_metrics
   - name: stg_eval_images

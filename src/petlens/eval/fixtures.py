@@ -110,6 +110,24 @@ def main() -> None:
                     label="ragdoll" if outcome == "accept" else None,
                 )
             )
+        for i, status in enumerate(["ok", "ok", "parse_failed"]):
+            s.add(
+                m.VlmTag(
+                    image_id=f"{i}".ljust(64, "v"),
+                    prompt_version="screen-v1",
+                    model_tag="fixture-vl",
+                    model_digest="sha256:0",
+                    status=status,
+                    kind="photo" if status == "ok" else None,
+                    whole_animal=i == 0 if status == "ok" else None,
+                    kitten=False if status == "ok" else None,
+                    blurry=False if status == "ok" else None,
+                    several_animals=False if status == "ok" else None,
+                    attempts=1 + (status != "ok"),
+                    seconds=2.5,
+                    raw="{}",
+                )
+            )
         for i, (queue, action, label, truth) in enumerate(
             [
                 ("commons", "accept", "bengal", None),

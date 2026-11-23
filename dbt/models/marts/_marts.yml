@@ -132,6 +132,24 @@ models:
       - {name: unseen_top1, data_type: double precision}
       - {name: false_breed_claim_rate, data_type: double precision}
 
+  - name: mart_vlm_screening
+    description: VLM screener volume, parse failures, speed and tag mix per model and prompt.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: model_tag, data_type: text}
+      - {name: prompt_version, data_type: text}
+      - {name: model_digest, data_type: text}
+      - {name: photos, data_type: bigint}
+      - {name: parse_failed, data_type: bigint}
+      - {name: retried, data_type: bigint}
+      - {name: median_seconds, data_type: double precision}
+      - {name: share_not_photo, data_type: double precision}
+      - {name: share_partial, data_type: double precision}
+      - {name: share_several, data_type: double precision}
+      - {name: share_blurry, data_type: double precision}
+      - {name: share_kitten, data_type: double precision}
+
 unit_tests:
   - name: confused_pairs_count_only_wrong_known_breeds
     model: mart_confused_pairs

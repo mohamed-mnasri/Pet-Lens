@@ -20,6 +20,7 @@ import numpy as np
 from petlens.data.catalog import BreedCatalog, Species
 from petlens.data.manifest import ManifestRow
 from petlens.data.quality import is_weak
+from petlens.data.vlm_flags import blocked as vlm_blocked
 from petlens.models import policy
 from petlens.models.heads import SpeciesHead, evaluate, train_species_head
 from petlens.models.metrics import FloatArray, IntArray, macro_f1, top_k_accuracy
@@ -51,8 +52,10 @@ NEVER_TRAIN_FLAGS = {"review_unsure", "audit_only"}
 def in_training_pool(r: ManifestRow, admitted: frozenset[str]) -> bool:
     """v0 pool, the Commons images screening admitted, and labels I reviewed. Photos I
     wasn't sure about, blind-audit answers and weak photos (black and white, blurry, the
-    animal cut off or tiny) are never trained on, unless I reviewed a weak one as fine."""
-    if NEVER_TRAIN_FLAGS & set(r.flags) or is_weak(r):
+    animal cut off or tiny) are never trained on, unless I reviewed a weak one as fine.
+    Nor are web photos the VLM screener flags as not a real photo, only part of the
+    animal, or several animals (Step 13)."""
+    if NEVER_TRAIN_FLAGS & set(r.flags) or is_weak(r) or vlm_blocked(r):
         return False
     return in_v0_training_pool(r) or r.image_id in admitted or r.label_origin == "me"
 

@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt golden register gate promote registry finetune ablation regression-update install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt golden register gate promote registry finetune ablation regression-update vlm-pull vlm-screen vlm-export vlm-report vlm-breeds install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -146,6 +146,24 @@ promote:
 
 registry:
 	uv run python -m petlens.models registry
+
+# Steps 13 and 14: the local VLM (Ollama, qwen3-vl:4b). Batch only, never with the camera.
+vlm-pull:
+	ollama pull qwen3-vl:4b
+
+# Queue a tagging job for the worker (LIMIT=500 for a first sample).
+LIMIT ?=
+vlm-screen:
+	uv run python -m petlens.vlm screen $(if $(LIMIT),--limit $(LIMIT),)
+
+vlm-export:
+	uv run python -m petlens.vlm export
+
+vlm-report:
+	uv run python -m petlens.vlm report
+
+vlm-breeds:
+	uv run python -m petlens.vlm breeds $(if $(LIMIT),--limit $(LIMIT),)
 
 # Look-alike breeds (Ragdoll / Birman, ...) in the last two training runs: before and after.
 compare:

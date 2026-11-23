@@ -34,7 +34,7 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from petlens.data import quality
+from petlens.data import quality, vlm_flags
 from petlens.data.catalog import REPO_DATA_DIR, BreedCatalog
 from petlens.data.imaging import stored_path
 from petlens.data.manifest import ManifestRow, read_manifest, to_table, write_manifest
@@ -375,6 +375,7 @@ def build(
     rows = [r for r in rows if "review_unsure" not in r.flags]
     rows = add_phashes(rows, data_dir)
     rows = quality.apply_checks(rows, data_dir)
+    rows = vlm_flags.apply_tags(rows, vlm_flags.read_tags(repo_data_dir / "vlm" / "tags.parquet"))
     rows = assign_groups(rows, breeds, policy)
     rows = assign_splits(rows, breeds, previous, policy)
 

@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 13. VLM image screener
+**Current step:** 15. Pet profiles
 **Last updated:** 2026-11-23
 
 ## Principles I'm holding myself to
@@ -29,8 +29,8 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 10 | Evaluation module and dbt marts | 2: Data engineering | Done (`dbt build` runs in CI on fixtures) |
 | 11 | Model registry, golden set and promotion gate | 2: Data engineering | Done in code |
 | 12 | Fine-tuning ablations (Phase 2 gate) | 2: Data engineering | Done in code (Phase 2 gate waits on 300+ reviews) |
-| 13 | VLM image screener | 3: VLM and pets | Not started |
-| 14 | VLM breed-naming experiment | 3: VLM and pets | Not started |
+| 13 | VLM image screener | 3: VLM and pets | Done in code (needs Ollama runs on my PC) |
+| 14 | VLM breed-naming experiment | 3: VLM and pets | Done in code (result goes in the README) |
 | 15 | Pet profiles (Phase 3 gate) | 3: VLM and pets | Not started |
 | 16 | Live camera page | 4: Live and presentation | Not started |
 | 17 | One-command demo, README, model and dataset cards, ADRs | 4: Live and presentation | Not started |
@@ -357,7 +357,15 @@ Implementation notes:
 
 Done when: agreement per tag against my reviews (Cohen's kappa) and the effect on training-set noise are reported.
 
+Implementation notes:
+
+- 13a (screener): `make vlm-pull` gets `qwen3-vl:4b`; `make vlm-screen` queues a `vlm_screen` job (`make worker` runs it; `LIMIT=500` for a sample). Each photo goes to Ollama's chat API at temperature 0 as a 768 px JPEG with the versioned prompt (`screen-v1`) and a JSON schema; the answer is validated with Pydantic (`kind` photo/drawing/toy/other, `whole_animal`, `kitten`, `blurry`, `several_animals`), retried once, then stored as `parse_failed`. Photos I reviewed go first (so the VLM can be measured against me), then Commons and Openverse training candidates, then their held-out photos. Each answer is its own row in `vlm_tag` (migration 0007) with the prompt version, model tag and digest, attempts and seconds, so an interrupted job resumes.
+- 13b (gating): `make vlm-export` writes the valid tags to `data/vlm/tags.parquet` (committed); `make data-build` turns them into flags (`vlm_not_photo`, `vlm_partial`, `vlm_several`, `vlm_kitten`, `vlm_blurry`). Commons and Openverse photos with one of the first three are not trained on unless I reviewed them (the VLM never changes a label, and my review overrides it). Every flag is also a failure slice in `mart_failure_slices`, and the new `mart_vlm_screening` counts photos, parse failures, retries, speed and the tag mix per model and prompt.
+- 13c (measurement): `make vlm-report` writes `docs/results/vlm-screen-screen-v1.md`: Cohen's kappa of "not a real photo" against my "not a cat or dog" and of "unusable" against my "not sure", agreement with the pixel blur check and the detector box, the wrong-label rate among reviewed web photos the VLM keeps versus drops, and how many training candidates it keeps out.
+
 **Step 14. Breed-naming experiment.** A one-off script where the VLM names the breed zero-shot on the golden and unseen-source sets, compared with the classifier. The result goes in the README whichever way it lands. It is not a pipeline stage.
+
+Implementation notes: `make vlm-breeds` (`LIMIT=300` photos per set by default is a good first run) asks the VLM to pick one breed from the same list the classifier knows (plus "domestic cat, no clear breed"), with the answer constrained by a JSON schema enum and one retry (prompt `breeds-v1`). The served classifier answers the same photos, leaving out anything it trained on. The report (`docs/results/vlm-breeds-<version>.md`) gives both top-1 accuracies with 95% intervals, the paired split (both right, only one right, both wrong), unanswered photos, seconds per photo and the VLM's most common mistakes. Answers are cached in `D:\petlens-data\models\vlm_breeds`, so a stopped run resumes.
 
 **Step 15. Pet profiles.**
 

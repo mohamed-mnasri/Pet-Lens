@@ -22,6 +22,8 @@ ReviewQueue = Literal["commons", "batch", "audit", "check"]
 CardState = Literal["pending", "done"]
 JobState = Literal["queued", "running", "done", "failed", "dead"]
 DeadLetterSource = Literal["api", "worker"]
+VlmStatus = Literal["ok", "parse_failed"]
+VlmKind = Literal["photo", "drawing", "toy", "other"]
 
 EMBEDDING_DIM = 384  # DINOv2 ViT-S/14
 
@@ -151,6 +153,24 @@ class ModelRegistry(Contract):
     champion: bool
     gate: dict[str, Any] | None = None
     promoted_at: datetime | None = None
+    created_at: datetime
+
+
+class VlmTag(Contract):
+    id: int
+    image_id: str
+    prompt_version: str
+    model_tag: str
+    model_digest: str
+    status: VlmStatus
+    kind: VlmKind | None = None
+    whole_animal: bool | None = None
+    kitten: bool | None = None
+    blurry: bool | None = None
+    several_animals: bool | None = None
+    attempts: int
+    seconds: float
+    raw: str
     created_at: datetime
 
 

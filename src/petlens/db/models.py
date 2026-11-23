@@ -1,6 +1,6 @@
 """SQLAlchemy models for the operational tables (SPEC section 9).
 
-``vlm_tag`` (Step 13) and the pet identity tables (Step 15) arrive with their steps.
+The pet identity tables (Step 15) arrive with their step.
 """
 
 from __future__ import annotations
@@ -413,3 +413,35 @@ class DatasetCount(Base):
     split: Mapped[str] = mapped_column(String(32))
     label_origin: Mapped[str] = mapped_column(String(32))
     n: Mapped[int] = mapped_column(Integer)
+
+
+# --- VLM screener (Step 13): written by the vlm_screen job ----------------------------
+
+
+class VlmTag(Base):
+    """The local VLM's answer for one image under one prompt version and model.
+    ``status`` is ``ok`` or ``parse_failed`` (no valid JSON after one retry)."""
+
+    __tablename__ = "vlm_tag"
+    __table_args__ = (
+        UniqueConstraint("image_id", "prompt_version", "model_tag"),
+        _in("status", c.VlmStatus),
+        _in("kind", c.VlmKind),
+        Index("ix_vlm_tag_image", "image_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    image_id: Mapped[str] = mapped_column(String(64))
+    prompt_version: Mapped[str] = mapped_column(String(32))
+    model_tag: Mapped[str] = mapped_column(String(64))
+    model_digest: Mapped[str] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str | None] = mapped_column(String(16))
+    whole_animal: Mapped[bool | None] = mapped_column(Boolean)
+    kitten: Mapped[bool | None] = mapped_column(Boolean)
+    blurry: Mapped[bool | None] = mapped_column(Boolean)
+    several_animals: Mapped[bool | None] = mapped_column(Boolean)
+    attempts: Mapped[int] = mapped_column(Integer)
+    seconds: Mapped[float] = mapped_column(Float)
+    raw: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created()

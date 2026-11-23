@@ -90,7 +90,29 @@ def commons_screening(ctx: JobContext, job: m.Job) -> dict[str, Any]:
     return {"stage": "screen"}
 
 
+def vlm_screen(ctx: JobContext, job: m.Job) -> dict[str, Any]:
+    """Tag photos with the local VLM (Step 13). Resumes where an interrupted run stopped."""
+    from petlens.data.catalog import REPO_DATA_DIR
+    from petlens.data.manifest import read_manifest
+    from petlens.vlm import screen
+
+    version = (REPO_DATA_DIR / "manifests" / "LATEST").read_text(encoding="utf-8").strip()
+    rows = read_manifest(REPO_DATA_DIR / "manifests" / f"{version}.parquet")
+    vlm = screen.OllamaVlm(ctx.settings.vlm_model, ctx.settings.ollama_url)
+    with ctx.sessions() as session:
+        counts = screen.run(
+            session,
+            rows,
+            ctx.settings.data_dir,
+            vlm,
+            limit=job.payload.get("limit"),
+            progress=lambda done, total: ctx.progress(done, total, None),
+        )
+    return {"dataset_version": version, **counts}
+
+
 HANDLERS: dict[str, Handler] = {
     "review_batch": review_batch,
     "commons_screening": commons_screening,
+    "vlm_screen": vlm_screen,
 }
