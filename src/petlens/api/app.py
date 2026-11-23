@@ -29,6 +29,7 @@ from petlens.db import models as m
 from petlens.db.session import get_engine
 from petlens.jobs import queue
 from petlens.jobs.handlers import batch_files
+from petlens.review import answers
 from petlens.vision.pipeline import Analyzer
 
 log = logging.getLogger(__name__)
@@ -161,6 +162,25 @@ def create_app(
         if not path.is_file():
             raise HTTPException(404, "No such image")
         return FileResponse(path, media_type="image/webp")
+
+    @app.get("/review/next", response_model=c.CardView | None)
+    def review_next(session: DB, queue: c.ReviewQueue | None = None) -> c.CardView | None:
+        return answers.next_card(session, queue)
+
+    @app.post("/review/{card_id}", response_model=c.LabelEvent)
+    def review_answer(card_id: uuid.UUID, body: c.ReviewIn, session: DB) -> c.LabelEvent:
+        try:
+            event = answers.answer(session, card_id, body)
+        except KeyError as exc:
+            raise HTTPException(404, "No card with that id") from exc
+        except answers.ReviewError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        session.commit()
+        return c.LabelEvent.model_validate(event)
+
+    @app.get("/review/stats", response_model=c.ReviewStats)
+    def review_stats(session: DB) -> c.ReviewStats:
+        return answers.stats(session)
 
     @app.get("/jobs/{job_id}", response_model=c.Job)
     def get_job(job_id: uuid.UUID, session: DB) -> c.Job:

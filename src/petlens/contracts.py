@@ -17,7 +17,9 @@ UploadStatus = Literal["received", "stored", "processing", "done", "rejected", "
 Species = Literal["cat", "dog"]
 Outcome = Literal["accept", "no_clear_breed", "review"]
 LabelOrigin = Literal["oxford", "commons", "me", "vlm", "model"]
-LabelAction = Literal["propose", "accept", "reject", "fix", "skip"]
+LabelAction = Literal["propose", "accept", "reject", "fix", "skip", "unsure"]
+ReviewQueue = Literal["commons", "batch", "audit", "check"]
+CardState = Literal["pending", "done"]
 JobState = Literal["queued", "running", "done", "failed", "dead"]
 DeadLetterSource = Literal["api", "worker"]
 
@@ -109,6 +111,7 @@ class LabelEvent(Contract):
     action: LabelAction
     reviewer: str | None = None
     review_ms: int | None = Field(default=None, ge=0)
+    review_card_id: UUID | None = None
     created_at: datetime
 
 
@@ -182,3 +185,59 @@ class Evidence(BaseModel):
     source_ref: str | None = None
     licence: str | None = None
     attribution: str | None = None
+
+
+class ReviewCard(Contract):
+    """One swipe card. ``model_label`` and ``truth`` stay on the server (blind audit and
+    reviewer check); the page gets ``CardView`` instead."""
+
+    id: UUID
+    ref: str
+    queue: ReviewQueue
+    image_id: str | None = None
+    detection_id: UUID | None = None
+    upload_id: UUID | None = None
+    image_url: str
+    x0: float | None = None
+    y0: float | None = None
+    x1: float | None = None
+    y1: float | None = None
+    species: Species
+    suggested: str | None = None
+    options: list[str]
+    model_label: str | None = None
+    truth: str | None = None
+    priority: int
+    state: CardState
+    created_at: datetime
+    answered_at: datetime | None = None
+
+
+class CardView(BaseModel):
+    id: UUID
+    queue: ReviewQueue
+    image_url: str
+    box: tuple[float, float, float, float] | None = None
+    species: Species
+    suggested: str | None  # None on blind audit cards: pick from the options instead
+    question: str
+    options: list[str]
+    references: list[Evidence]
+    pending: int
+
+
+ReviewAnswer = Literal["correct", "wrong", "unsure", "skip"]
+
+
+class ReviewIn(BaseModel):
+    answer: ReviewAnswer
+    label: str | None = Field(default=None, max_length=64)  # for "wrong" and blind cards
+    review_ms: int | None = Field(default=None, ge=0, le=3_600_000)
+
+
+class ReviewStats(BaseModel):
+    pending: dict[str, int]
+    answered: int
+    checks_answered: int
+    checks_correct: int
+    reviewer_accuracy: float | None

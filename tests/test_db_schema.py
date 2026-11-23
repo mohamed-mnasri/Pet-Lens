@@ -34,6 +34,7 @@ PAIRS = [
     (m.ModelRegistry, c.ModelRegistry),
     (m.DeadLetter, c.DeadLetter),
     (m.TrainImage, c.TrainImage),
+    (m.ReviewCard, c.ReviewCard),
 ]
 NOT_IN_CONTRACT = {
     ("detection", "embedding"),

@@ -173,6 +173,9 @@ class LabelEvent(Base):
     action: Mapped[str] = mapped_column(String(16))
     reviewer: Mapped[str | None] = mapped_column(String(64))
     review_ms: Mapped[int | None] = mapped_column(Integer)
+    review_card_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("review_card.id", ondelete="SET NULL"), index=True
+    )
     created_at: Mapped[datetime] = _created()
 
 
@@ -265,3 +268,38 @@ class TrainImage(Base):
     attribution: Mapped[str | None] = mapped_column(Text)
     embedding: Mapped[list[float]] = mapped_column(Vector(c.EMBEDDING_DIM))
     embed_model: Mapped[str] = mapped_column(String(128))
+
+
+class ReviewCard(Base):
+    """A swipe card. Answers are stored as label events; the card only tracks state."""
+
+    __tablename__ = "review_card"
+    __table_args__ = (
+        _in("queue", c.ReviewQueue),
+        _in("species", c.Species),
+        _in("state", c.CardState),
+        Index("ix_review_card_state_priority", "state", "priority"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    ref: Mapped[str] = mapped_column(String(200), unique=True)  # queue:image, for idempotent loads
+    queue: Mapped[str] = mapped_column(String(16))
+    image_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    detection_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("detection.id", ondelete="CASCADE")
+    )
+    upload_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("upload.id", ondelete="CASCADE"))
+    image_url: Mapped[str] = mapped_column(Text)
+    x0: Mapped[float | None] = mapped_column(Float)
+    y0: Mapped[float | None] = mapped_column(Float)
+    x1: Mapped[float | None] = mapped_column(Float)
+    y1: Mapped[float | None] = mapped_column(Float)
+    species: Mapped[str] = mapped_column(String(8))
+    suggested: Mapped[str | None] = mapped_column(String(64))
+    options: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+    model_label: Mapped[str | None] = mapped_column(String(64))
+    truth: Mapped[str | None] = mapped_column(String(64))
+    priority: Mapped[int] = mapped_column(Integer, server_default="1")
+    state: Mapped[str] = mapped_column(String(16), server_default="pending")
+    created_at: Mapped[datetime] = _created()
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from petlens.api import ingest, service
 from petlens.config import Settings
 from petlens.db import models as m
+from petlens.review.cards import cards_for_upload
 from petlens.vision.pipeline import Analyzer
 
 REVIEW_BATCH_MAX_FILES = 200
@@ -64,6 +65,7 @@ def review_batch(ctx: JobContext, job: m.Job) -> dict[str, Any]:
         with ctx.sessions() as session:
             try:
                 upload_id = handler(session, analyzer, ctx.settings, data, path.name, "review")
+                cards_for_upload(session, upload_id)  # swipe cards for each animal
                 session.commit()
                 done_names[path.name] = str(upload_id)
             except ingest.RejectedUploadError as exc:
