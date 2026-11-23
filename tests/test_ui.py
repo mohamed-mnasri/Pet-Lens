@@ -149,6 +149,32 @@ class _FakeApi:
     def limits(self) -> dict[str, float]:
         return LIMITS
 
+    def review_stats(self) -> dict[str, Any]:
+        return {
+            "pending": {"commons": 3, "check": 1},
+            "answered": 7,
+            "checks_answered": 2,
+            "checks_correct": 1,
+            "reviewer_accuracy": 0.5,
+        }
+
+    def review_next(self, queue: str | None = None) -> dict[str, Any] | None:
+        return {
+            "id": "card-1",
+            "queue": "commons",
+            "image_url": "/images/train/x",
+            "box": None,
+            "species": "cat",
+            "suggested": "bengal",
+            "question": "Is this a Bengal?",
+            "options": ["domestic_cat", "not_pet"],
+            "references": [],
+            "pending": 4,
+        }
+
+    def image(self, url: str) -> bytes:
+        return _jpeg()
+
     def jobs(self, limit: int = 20) -> list[dict[str, Any]]:
         return [
             {
@@ -176,3 +202,15 @@ def test_page_renders_limits_and_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert at.title[0].value == "🐾 PetLens"
     assert any("40 MP" in c.value for c in at.caption)
     assert any("review_batch" in (p.proto.text or "") for p in at.get("progress"))
+    # The review tab: the question, my accuracy, and the three swipe buttons.
+    assert any(s.value == "Is this a Bengal?" for s in at.subheader)
+    assert any("accuracy on check cards 50%" in c.value for c in at.caption)
+    labels = [b.label for b in at.button]
+    assert {"Wrong", "Not sure", "Correct"} <= set(labels)
+
+
+def test_review_wording() -> None:
+    assert view.option_label("not_pet") == "Not a cat or dog"
+    assert view.option_label("domestic_cat") == "Domestic / no clear breed"
+    text = view.stats_text({"pending": {"batch": 2, "check": 1}, "answered": 0})
+    assert text.startswith("3 cards left") and "My batches 2" in text and "Check" not in text

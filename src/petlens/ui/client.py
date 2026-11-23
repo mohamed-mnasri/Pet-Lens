@@ -60,6 +60,22 @@ class ApiClient:
         )
         return result
 
+    def review_next(self, queue: str | None = None) -> dict[str, Any] | None:
+        params = {"queue": queue} if queue else {}
+        result: dict[str, Any] | None = self._json(self.http.get("/review/next", params=params))
+        return result
+
+    def review_answer(
+        self, card_id: str, answer: str, label: str | None = None, review_ms: int | None = None
+    ) -> dict[str, Any]:
+        body = {"answer": answer, "label": label, "review_ms": review_ms}
+        result: dict[str, Any] = self._json(self.http.post(f"/review/{card_id}", json=body))
+        return result
+
+    def review_stats(self) -> dict[str, Any]:
+        result: dict[str, Any] = self._json(self.http.get("/review/stats"))
+        return result
+
     def image(self, url: str) -> bytes:
         r = self.http.get(url)
         if r.status_code >= 400:

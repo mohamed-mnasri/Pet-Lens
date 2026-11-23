@@ -7,6 +7,7 @@ similar training photos, and follow batch jobs. The page only talks to the API.
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 import streamlit as st
@@ -95,6 +96,74 @@ def upload_tab(api: api_client.ApiClient, limits: dict[str, float]) -> None:
             show_run(api, f.name, run)
 
 
+def _send(api: api_client.ApiClient, card: dict[str, Any], answer: str, label: str | None) -> None:
+    shown = st.session_state.get("shown_at", {}).get(card["id"], time.time())
+    try:
+        api.review_answer(card["id"], answer, label, int((time.time() - shown) * 1000))
+    except api_client.ApiError as exc:
+        st.error(exc.detail)
+        return
+    st.session_state.pop("picking", None)
+    st.rerun()
+
+
+def review_tab(api: api_client.ApiClient) -> None:
+    st.caption(view.stats_text(api.review_stats()))
+    choices = {"All": None, "Commons": "commons", "My batches": "batch", "Blind audit": "audit"}
+    pick = st.radio("Queue", list(choices), horizontal=True, label_visibility="collapsed")
+    card = api.review_next(choices[pick])
+    if card is None:
+        st.success("Nothing left to review here. 🎉")
+        return
+    st.session_state.setdefault("shown_at", {}).setdefault(card["id"], time.time())
+    left, right = st.columns([3, 2])
+    with left:
+        img = api.image(card["image_url"])
+        if card.get("box"):
+            x0, y0, x1, y1 = card["box"]
+            box = {"id": card["id"], "species": "", "x0": x0, "y0": y0, "x1": x1, "y1": y1}
+            img = view.draw_boxes(img, [box], {card["id"]: ""})
+        st.image(img, width="stretch")
+    with right:
+        st.subheader(card["question"])
+        st.caption(f"{view.QUEUE_NAMES.get(card['queue'], card['queue'])} · {card['pending']} left")
+        blind = card["suggested"] is None
+        picking = blind or st.session_state.get("picking") == card["id"]
+        if not picking:
+            b1, b2, b3 = st.columns(3)
+            if b1.button("Wrong", shortcut="Left", width="stretch"):
+                st.session_state["picking"] = card["id"]
+                st.rerun()
+            if b2.button("Not sure", shortcut="Up", width="stretch"):
+                _send(api, card, "unsure", None)
+            if b3.button("Correct", type="primary", shortcut="Right", width="stretch"):
+                _send(api, card, "correct", None)
+        else:
+            st.write("What is it?" if blind else "What is it instead?")
+            for opt in card["options"]:
+                if st.button(view.option_label(opt), key=f"opt-{opt}", width="stretch"):
+                    _send(api, card, "wrong", opt)
+            s1, s2 = st.columns(2)
+            if s1.button("Not sure", shortcut="Up", width="stretch"):
+                _send(api, card, "unsure", None)
+            if s2.button("Skip", width="stretch"):
+                _send(api, card, "skip", None)
+        refs = card.get("references", [])
+        if refs:
+            st.caption(f"{view.nice(card['suggested'])} examples from the training data")
+            cols = st.columns(len(refs))
+            for col, e in zip(cols, refs, strict=True):
+                with col:
+                    try:
+                        st.image(api.image(e["url"]), width="stretch")
+                    except api_client.ApiError:
+                        st.caption("image missing")
+    st.caption(
+        "Keys: → correct · ← wrong · ↑ not sure (click an empty spot first if the arrows "
+        "switch tabs). Not sure is a fine answer."
+    )
+
+
 def jobs_tab(api: api_client.ApiClient) -> None:
     st.caption("Queue a folder of photos and clips (at most 200). `make worker` runs it.")
     folder = st.text_input("Folder on this PC", placeholder=r"D:\petlens-data\footage\test")
@@ -124,9 +193,11 @@ def main() -> None:
         st.error(f"The API isn't answering at {base_url}. Start it with `make api`.")
         st.stop()
     limits = api.limits()
-    upload, jobs = st.tabs(["Upload", "Batch jobs"])
+    upload, review, jobs = st.tabs(["Upload", "Review", "Batch jobs"])
     with upload:
         upload_tab(api, limits)
+    with review:
+        review_tab(api)
     with jobs:
         jobs_tab(api)
 

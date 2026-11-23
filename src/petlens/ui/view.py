@@ -112,3 +112,34 @@ def job_progress(job: dict[str, Any]) -> float:
     return (
         min(1.0, job["progress_done"] / total) if total else (1.0 if job["state"] == "done" else 0)
     )
+
+
+QUEUE_NAMES = {
+    "commons": "Commons",
+    "batch": "My batches",
+    "audit": "Blind audit",
+    "check": "Check",
+}
+
+
+def stats_text(stats: dict[str, Any]) -> str:
+    pending = stats.get("pending", {})
+    left = sum(pending.values())
+    parts = [f"{left} cards left"]
+    parts += [f"{QUEUE_NAMES.get(q, q)} {n}" for q, n in sorted(pending.items()) if q != "check"]
+    parts.append(f"{stats.get('answered', 0)} answered")
+    acc = stats.get("reviewer_accuracy")
+    if acc is not None:
+        parts.append(
+            f"your accuracy on check cards {acc:.0%} "
+            f"({stats['checks_correct']}/{stats['checks_answered']})"
+        )
+    return " · ".join(parts)
+
+
+def option_label(label: str) -> str:
+    if label == "not_pet":
+        return "Not a cat or dog"
+    if label == "domestic_cat":
+        return "Domestic / no clear breed"
+    return nice(label)
