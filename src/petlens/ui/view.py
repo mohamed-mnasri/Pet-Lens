@@ -143,7 +143,7 @@ def job_progress(job: dict[str, Any]) -> float:
 
 
 QUEUE_NAMES = {
-    "commons": "Commons",
+    "commons": "Web photos",
     "batch": "My batches",
     "audit": "Blind audit",
     "check": "Check",

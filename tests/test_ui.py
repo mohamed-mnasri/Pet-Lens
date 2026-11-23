@@ -158,7 +158,9 @@ class _FakeApi:
             "reviewer_accuracy": 0.5,
         }
 
-    def review_next(self, queue: str | None = None) -> dict[str, Any] | None:
+    def review_next(
+        self, queue: str | None = None, species: str | None = None
+    ) -> dict[str, Any] | None:
         return {
             "id": "card-1",
             "queue": "commons",
@@ -210,12 +212,17 @@ def test_page_renders_limits_and_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert any("face and the body" in i.value for i in at.info)
     assert any("review_batch" in (p.proto.text or "") for p in at.get("progress"))
     # The review tab: the question, my accuracy, and the three swipe buttons.
-    assert any(s.value == "Is this a Bengal?" for s in at.subheader)
+    assert any("Is this a Bengal?" in m.value for m in at.markdown)
     assert any("accuracy on check cards 50%" in c.value for c in at.caption)
     assert any("Ragdoll 5" in c.value and "7 photos" in c.value for c in at.caption)
     assert any(s.label.startswith("Breed of every photo") for s in at.selectbox)
     labels = [b.label for b in at.button]
     assert {"Wrong", "Not sure", "Correct"} <= set(labels)
+    # After "Wrong": the card's choices plus a box to type the breed.
+    next(b for b in at.button if b.label == "Wrong").click().run()
+    assert not at.exception
+    assert any(s.label == "Or type the breed" for s in at.selectbox)
+    assert {"Not a cat or dog", "Skip"} <= {b.label for b in at.button}
 
 
 def test_review_wording() -> None:
