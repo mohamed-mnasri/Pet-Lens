@@ -80,7 +80,7 @@ def test_train_end_to_end_on_synthetic_embeddings() -> None:
     assert set(heads) == {"cat", "dog"}
     cat = metrics["cat"]
     assert isinstance(cat, dict)
-    assert cat["split_sizes"]["train"] == 25 * 12
+    assert cat["split_sizes"]["train"] == 22 * 12
     assert cat["tests"]["test_in_domain"]["calibrated"]["top1"] > 0.9
     assert cat["domestic_test_called_a_breed"] < 0.5
     assert [p["fraction"] for p in cat["learning_curve"]] == [0.25, 0.5, 1.0]

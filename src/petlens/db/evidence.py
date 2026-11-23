@@ -57,6 +57,9 @@ def replace_index(
     return len(rows)
 
 
+NO_DISPLAY = "no_display"
+
+
 def index_from_files(session: Session, settings: Settings) -> int:
     """Index the training pool of the latest run (the same images the kNN score uses)."""
     from petlens.data.catalog import REPO_DATA_DIR
@@ -88,7 +91,10 @@ def index_from_files(session: Session, settings: Settings) -> int:
             [float(v) for v in vecs[r.image_id]],
         )
         for r in rows
-        if r.split == "train" and r.image_id in vecs and in_training_pool(r, admitted)
+        if r.split == "train"
+        and r.image_id in vecs
+        and in_training_pool(r, admitted)
+        and NO_DISPLAY not in r.flags  # stock-licence photos train but are never shown
     )
     return replace_index(session, records, version, model_name)
 

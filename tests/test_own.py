@@ -69,16 +69,20 @@ def test_breed_folders_are_matched_and_imported(tmp_path: Path) -> None:
     root = tmp_path / "cats"
     (root / "Ragdoll").mkdir(parents=True)
     (root / "Unicorn").mkdir()
-    (root / "Ragdoll" / "a.jpg").write_bytes(_png(_photo(7)))
+    (root / "Ragdoll" / "pexels-ann-123456.jpg").write_bytes(_png(_photo(7)))
     (root / "Ragdoll" / "b.png").write_bytes(_png(_photo(8).convert("L").convert("RGB")))
     data = tmp_path / "data"
-    report = folders.import_folders(root, "Pexels licence", data, BREEDS, _detector(CAT))
+    report = folders.import_folders(root, "Mixed", data, BREEDS, _detector(CAT))
     assert report.added["ragdoll"] == 1 and report.left_out["ragdoll"] == 1
     assert report.unmatched == ["Unicorn"] and "black and white: 1" in report.render()
-    again = folders.import_folders(root, "Pexels licence", data, BREEDS, _detector(CAT))
+    again = folders.import_folders(root, "Mixed", data, BREEDS, _detector(CAT))
     assert again.already["ragdoll"] == 1 and not again.added
     (row,) = read_manifest(own.manifest_path(data, "licensed"))
-    assert (row.licence, row.source, row.label_origin) == ("Pexels licence", "licensed", "me")
+    assert (row.licence, row.source, row.label_origin) == ("Pexels License", "licensed", "me")
+    assert "no_display" in row.flags  # trains, never shown
+    assert folders.licence_for("cat-2083492_1280.jpg", "x") == "Pixabay Content License"
+    assert folders.licence_for("tom-AbC12dEf-unsplash.jpg", "x") == "Unsplash License"
+    assert folders.licence_for("IMG_0042.jpg", "x") == "x"
 
 
 def test_openverse_keeps_licensed_photos_and_stops_at_the_limit(tmp_path: Path) -> None:

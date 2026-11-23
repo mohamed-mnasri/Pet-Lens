@@ -264,10 +264,10 @@ def assign_splits(
         for r in members:
             if set(r.flags) & EXCLUDE_FLAGS:
                 split = "excluded"
+            elif role.get(r.breed) == "unknown":
+                split = "test_unknown"  # even if it trained before (a breed I dropped)
             elif r.image_id in previous and previous[r.image_id].split not in (None, "excluded"):
                 split = previous[r.image_id].split or "excluded"
-            elif role.get(r.breed) == "unknown":
-                split = "test_unknown"
             elif r.source == "oxford" and r.source_split == "test":
                 split = "test_in_domain"
             elif has_ox_test and not has_ox_train:

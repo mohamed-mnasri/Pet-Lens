@@ -81,9 +81,9 @@ data-commons:
 data-build:
 	uv run python -m petlens.data build
 
-# A folder with one subfolder of photos per breed, under one licence (Step 9f).
+# A folder with one subfolder of photos per breed (Step 9f). Train-only: never shown.
 import-folders:
-	uv run --extra ml python -m petlens.data.folders --folder "$(FOLDER)" --licence "$(LICENCE)"
+	uv run --extra ml python -m petlens.data.folders --folder "$(FOLDER)"
 
 # About 30 openly licensed photos per cat and dog breed from Openverse (Step 9f).
 data-openverse:

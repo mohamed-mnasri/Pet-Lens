@@ -101,6 +101,7 @@ def add_photo(
     label_origin: str = "me",
     ref: str | None = None,
     author: str | None = None,
+    extra_flags: tuple[str, ...] = (),
 ) -> AddResult:
     """Check one photo and, if it's usable, store it and list it in ``source``'s
     manifest. ``ref`` names it within the source (default: the original's hash)."""
@@ -139,7 +140,7 @@ def add_photo(
                 height=stored.original_height,
                 author=author,
                 bbox=box,
-                flags=list(stored.flags),
+                flags=sorted({*stored.flags, *extra_flags}),
             )
         )
         write_manifest(rows, path)

@@ -1,12 +1,18 @@
 """Import a folder that holds one subfolder of photos per breed.
 
-``make import-folders FOLDER="C:\\Users\\me\\Downloads\\cats" LICENCE="Pexels licence"``
+``make import-folders FOLDER="C:\\Users\\me\\Downloads\\cats"``
 
 Subfolder names are matched to breeds loosely ("Maine Coon", "maine-coon",
 "Maine Coon cats" all work). Each photo goes through the same checks as the page's
 "Add training photos" tab (``petlens.data.own``) and is listed in the ``licensed``
-source with the licence I give, so its lineage stays on every row. Rerunning skips
-photos already imported.
+source. Rerunning skips photos already imported.
+
+Licence per photo: Pexels, Unsplash and Pixabay file names are recognised (their
+default download names), anything else gets the licence given on the command line.
+These stock licences allow free use but forbid compiling the photos into a similar
+collection, and the other photos have no attribution recorded, so every imported photo
+is flagged ``no_display``: it trains the model but never appears as evidence or as a
+review example.
 """
 
 from __future__ import annotations
@@ -27,6 +33,19 @@ log = logging.getLogger(__name__)
 
 SOURCE_KEY = "licensed"
 PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
+DEFAULT_LICENCE = "Openverse (commercial use; licence not recorded per photo)"
+NO_DISPLAY = "no_display"
+# Default download names: pexels-name-123456.jpg, name-AbC12dEf-unsplash.jpg,
+# cat-2083492_1280.jpg (Pixabay).
+STOCK = (
+    (re.compile(r"pexels", re.I), "Pexels License"),
+    (re.compile(r"unsplash", re.I), "Unsplash License"),
+    (re.compile(r"pixabay|^[a-z0-9-]+-\d{6,9}(_\d{3,4})?\.\w+$", re.I), "Pixabay Content License"),
+)
+
+
+def licence_for(file_name: str, default: str) -> str:
+    return next((name for pat, name in STOCK if pat.search(file_name)), default)
 
 
 def _norm(text: str) -> str:
@@ -92,15 +111,17 @@ def import_folders(
             if sha256_bytes(data) in known:
                 report.already[breed] += 1
                 continue
+            this = licence_for(file.name, licence)
             r = add_photo(
                 data,
                 breed,
                 data_dir,
                 breeds,
                 detect,
-                licence=licence,
-                attribution=attribution or licence,
+                licence=this,
+                attribution=attribution or this,
                 source=SOURCE_KEY,
+                extra_flags=(NO_DISPLAY,),
             )
             if r.status == "added":
                 report.added[breed] += 1
@@ -120,7 +141,9 @@ def main(argv: list[str] | None = None) -> None:
 
     parser = argparse.ArgumentParser(prog="python -m petlens.data.folders")
     parser.add_argument("--folder", required=True, type=Path)
-    parser.add_argument("--licence", required=True, help='e.g. "Pexels licence" or "CC0"')
+    parser.add_argument(
+        "--licence", default=DEFAULT_LICENCE, help="for photos whose name shows no licence"
+    )
     parser.add_argument("--attribution", default="")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(message)s")

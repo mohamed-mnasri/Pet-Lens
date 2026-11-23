@@ -9,18 +9,28 @@ def test_breeds_yaml_is_valid_and_complete() -> None:
     assert len(cat.by_oxford_label()) == 37
     cats = cat.training_classes("cat")
     dogs = cat.training_classes("dog")
-    assert len(cats) == 25 and "domestic_cat" in cats
-    assert len(dogs) == 25
+    assert len(cats) == 22 and "domestic_cat" in cats
+    assert len(dogs) == 29
     unknown = {b.id for b in cat.breeds if b.role == "unknown"}
-    assert unknown == {"chartreux", "turkish_van", "korat", "selkirk_rex", "manx"}
-    # Unknown breeds are never Oxford breeds (Oxford breeds all stay in training).
-    assert all(cat.get(u).oxford_label is None for u in unknown)
+    assert unknown == {
+        "bombay",
+        "exotic_shorthair",
+        "turkish_angora",
+        "chartreux",
+        "turkish_van",
+        "korat",
+        "selkirk_rex",
+        "manx",
+    }
+    # Bombay is the one Oxford breed I chose not to cover; it tests unknown breeds.
+    assert {u for u in unknown if cat.get(u).oxford_label} == {"bombay"}
 
 
-def test_every_cat_has_commons_categories_and_dogs_do_not_yet() -> None:
+def test_commons_categories_cover_cats_and_the_non_oxford_dogs() -> None:
     cat = load_breeds()
     for b in cat.breeds:
-        assert bool(b.commons_categories) == (b.species == "cat"), b.id
+        wanted = b.species == "cat" or b.oxford_label is None
+        assert bool(b.commons_categories) == wanted, b.id
 
 
 def test_duplicate_ids_rejected() -> None:

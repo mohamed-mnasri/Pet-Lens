@@ -12,7 +12,7 @@ breeds:
   - {id: abyssinian, name: Abyssinian, species: cat, role: train, oxford_label: Abyssinian, commons_categories: [Abyssinian cats]}
   - {id: bengal, name: Bengal, species: cat, role: train, oxford_label: Bengal, commons_categories: [Bengal cats]}
   - {id: birman, name: Birman, species: cat, role: train, oxford_label: Birman, commons_categories: [Birman cats]}
-  - {id: bombay, name: Bombay, species: cat, role: train, oxford_label: Bombay, commons_categories: [Bombay cats]}
+  - {id: bombay, name: Bombay, species: cat, role: unknown, oxford_label: Bombay, commons_categories: [Bombay cats]}
   - {id: british_shorthair, name: British Shorthair, species: cat, role: train, oxford_label: British_Shorthair, commons_categories: [British Shorthair cats]}
   - {id: egyptian_mau, name: Egyptian Mau, species: cat, role: train, oxford_label: Egyptian_Mau, commons_categories: [Egyptian Mau]}
   - {id: maine_coon, name: Maine Coon, species: cat, role: train, oxford_label: Maine_Coon, commons_categories: [Maine Coon cats]}
@@ -33,17 +33,18 @@ breeds:
   - {id: scottish_fold, name: Scottish Fold, species: cat, role: train, commons_categories: [Scottish Fold cats]}
   - {id: norwegian_forest_cat, name: Norwegian Forest Cat, species: cat, role: train, commons_categories: [Norwegian Forest Cats]}
   - {id: himalayan, name: Himalayan, species: cat, role: train, commons_categories: [Himalayan cats]}
-  - {id: exotic_shorthair, name: Exotic Shorthair, species: cat, role: train, commons_categories: [Exotic Shorthair cats]}
   - {id: devon_rex, name: Devon Rex, species: cat, role: train, commons_categories: [Devon Rex]}
   - {id: siberian, name: Siberian, species: cat, role: train, commons_categories: [Siberian cats]}
   - {id: american_shorthair, name: American Shorthair, species: cat, role: train, commons_categories: [American Shorthair]}
   - {id: burmese, name: Burmese, species: cat, role: train, commons_categories: [Burmese cats]}
   - {id: cornish_rex, name: Cornish Rex, species: cat, role: train, commons_categories: [Cornish Rex]}
   - {id: oriental_shorthair, name: Oriental Shorthair, species: cat, role: train, commons_categories: [Oriental Shorthair]}
-  - {id: turkish_angora, name: Turkish Angora, species: cat, role: train, commons_categories: [Turkish Angora]}
   - {id: savannah, name: Savannah, species: cat, role: train, commons_categories: [Savannah cats]}
 
-  # Cats: real breeds kept out of training, used only for the unknown-breed test
+  # Cats: real breeds kept out of training, used only for the unknown-breed test.
+  # Bombay is an Oxford breed moved here on purpose (I chose not to cover it).
+  - {id: exotic_shorthair, name: Exotic Shorthair, species: cat, role: unknown, commons_categories: [Exotic Shorthair cats]}
+  - {id: turkish_angora, name: Turkish Angora, species: cat, role: unknown, commons_categories: [Turkish Angora]}
   - {id: chartreux, name: Chartreux, species: cat, role: unknown, commons_categories: [Chartreux]}
   - {id: turkish_van, name: Turkish Van, species: cat, role: unknown, commons_categories: [Turkish Van]}
   - {id: korat, name: Korat, species: cat, role: unknown, commons_categories: [Korat]}
@@ -77,6 +78,13 @@ breeds:
   - {id: wheaten_terrier, name: Soft-coated Wheaten Terrier, species: dog, role: train, oxford_label: wheaten_terrier}
   - {id: yorkshire_terrier, name: Yorkshire Terrier, species: dog, role: train, oxford_label: yorkshire_terrier}
 
+  # Dogs: popular breeds Oxford doesn't have (Step 9f), from Commons, Openverse and my
+  # licensed folders.
+  - {id: golden_retriever, name: Golden Retriever, species: dog, role: train, commons_categories: [Golden Retrievers]}
+  - {id: german_shepherd, name: German Shepherd, species: dog, role: train, commons_categories: [German Shepherds]}
+  - {id: french_bulldog, name: French Bulldog, species: dog, role: train, commons_categories: [French Bulldogs]}
+  - {id: poodle, name: Poodle, species: dog, role: train, commons_categories: [Poodles]}
+
 # Pairs the UI names together when their scores are close (DATASET.md).
 close_pairs:
   - [bengal, egyptian_mau]
@@ -84,10 +92,8 @@ close_pairs:
   - [british_shorthair, russian_blue]
   - [american_pit_bull_terrier, staffordshire_bull_terrier]
   - [himalayan, persian]
-  - [exotic_shorthair, persian]
   - [scottish_fold, british_shorthair]
   - [norwegian_forest_cat, maine_coon]
   - [norwegian_forest_cat, siberian]
   - [devon_rex, cornish_rex]
-  - [burmese, bombay]
   - [oriental_shorthair, siamese]
