@@ -33,7 +33,13 @@ def main(argv: list[str] | None = None) -> None:
         if args.cmd == "load":
             version = (REPO_DATA_DIR / "manifests" / "LATEST").read_text(encoding="utf-8").strip()
             rows = read_manifest(REPO_DATA_DIR / "manifests" / f"{version}.parquet")
-            results = screening.read(REPO_DATA_DIR / "screening" / f"{version}.parquet")
+            screen_path = REPO_DATA_DIR / "screening" / f"{version}.parquet"
+            if not screen_path.exists():
+                # A rebuilt dataset (new flags, new reviews) before `make screen` has run:
+                # the last screening still applies image by image.
+                screen_path = max((REPO_DATA_DIR / "screening").glob("*.parquet"))
+                print(f"using screening {screen_path.stem} (run `make screen` to refresh)")
+            results = screening.read(screen_path)
             dropped = cards.drop_weak_cards(session, rows)
             new = cards.insert_cards(session, cards.commons_cards(rows, results))
             total = int(
