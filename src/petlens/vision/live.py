@@ -74,9 +74,10 @@ class LiveSession:
         return x / n if n else x
 
     def update(self, animals: list[AnimalResult]) -> list[Smoothed]:
-        now = time.monotonic()
-        self.last_seen = now
-        self.frame_times.append(now)
+        self.last_seen = time.monotonic()
+        # perf_counter: time.monotonic() ticks every ~16 ms on Windows, so frames handled
+        # within one tick all got the same time and fps() came out as 0.
+        self.frame_times.append(time.perf_counter())
         free = list(self.tracks)
         out: list[Smoothed] = []
         # Most confident detections pick their track first.
