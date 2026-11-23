@@ -340,10 +340,14 @@ def render_report(run_id: str, dataset_version: str, model: str, metrics: dict[s
         "screening",
         "",
     ]
+    tuned = metrics.get("finetune")
+    if isinstance(tuned, dict):
+        lines[3] = f"- Embeddings: {model} (fine-tuned from {tuned.get('base', '?')})"
     for species, m in metrics.items():
-        if species == "policy_config":
+        # Only per-species head metrics have test results; skip extras such as
+        # "policy_config" and the "finetune" history added by `make finetune`.
+        if not isinstance(m, dict) or "tests" not in m:
             continue
-        assert isinstance(m, dict)
         lines += [
             f"## {species.capitalize()} head",
             "",

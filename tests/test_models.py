@@ -92,6 +92,10 @@ def test_train_end_to_end_on_synthetic_embeddings() -> None:
     report = train.render_report("run", "v1", "fake", metrics)
     assert "| test_in_domain |" in report and "Learning curve" in report
     assert "False breed claim rate on domestic cats" in report
+    # `make finetune` adds its history next to the heads; the report must skip it.
+    tuned = {**metrics, "finetune": {"base": "vit_small", "classes": 51, "history": []}}
+    tuned_report = train.render_report("run", "v1", "ft-model", tuned)
+    assert "fine-tuned from vit_small" in tuned_report and "## Finetune head" not in tuned_report
     pair = next(
         p for p in cat["close_pairs"]["test_in_domain"] if p["pair"] == ["birman", "ragdoll"]
     )
