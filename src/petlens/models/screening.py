@@ -1,6 +1,7 @@
 """Commons screening (DATASET.md, "Human-in-the-loop").
 
-The v0 head (Oxford + domestic cats) predicts every Commons breed photo in the
+The v0 head (Oxford, my own and licensed photos, and domestic cats) predicts every
+Commons and Openverse breed photo in the
 train/val/calibration pool. If its top-1 matches the Commons category, the photo is
 admitted to training. If not, it waits for a human review. A seeded 5% of the admitted
 photos also go to review, to measure how noisy agreed labels are. Top-1, not top-3,
@@ -27,6 +28,8 @@ from petlens.models.heads import train_species_head
 from petlens.models.train import POOL, build_arrays
 
 SAMPLE_RATE = 0.05
+# Sources whose labels are only weak hints (a Commons category, an Openverse search).
+SCREENED_SOURCES = {"commons", "openverse"}
 SCHEMA = pa.schema(
     [
         ("image_id", pa.string()),
@@ -61,7 +64,7 @@ def candidates(rows: list[ManifestRow], breeds: BreedCatalog) -> list[ManifestRo
     return [
         r
         for r in rows
-        if r.source == "commons"
+        if r.source in SCREENED_SOURCES
         and r.breed != "domestic_cat"
         and role.get(r.breed) == "train"
         and (r.split or "") in POOL
@@ -94,6 +97,11 @@ def screen(
             d.y.get("calibration", empty_y),
             seed=seed,
         )
+        # A breed with no trusted photos yet can't be screened: it waits, unused.
+        seeded = set(d.y["train"].tolist())
+        mine = [r for r in mine if d.classes.index(r.breed) in seeded]
+        if not mine:
+            continue
         probs = head.predict_proba(np.stack([emb[r.image_id] for r in mine]).astype(np.float64))
         for r, p in zip(mine, probs, strict=True):
             top = int(p.argmax())

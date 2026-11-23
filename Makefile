@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos compare install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -80,6 +80,14 @@ data-commons:
 
 data-build:
 	uv run python -m petlens.data build
+
+# A folder with one subfolder of photos per breed, under one licence (Step 9f).
+import-folders:
+	uv run --extra ml python -m petlens.data.folders --folder "$(FOLDER)" --licence "$(LICENCE)"
+
+# About 30 openly licensed photos per cat breed from Openverse (Step 9f).
+data-openverse:
+	uv run --extra ml python -m petlens.data.openverse --per-breed 30
 
 # My own training photos per breed (added from the page's "Add training photos" tab).
 own-photos:

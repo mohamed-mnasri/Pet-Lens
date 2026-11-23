@@ -63,8 +63,8 @@ class AddResult:
 _lock = threading.Lock()  # one manifest writer at a time
 
 
-def manifest_path(data_dir: Path) -> Path:
-    return data_dir / "processed" / "sources" / SOURCE_KEY / "manifest.parquet"
+def manifest_path(data_dir: Path, source: str = SOURCE_KEY) -> Path:
+    return data_dir / "processed" / "sources" / source / "manifest.parquet"
 
 
 def _problem(
@@ -97,11 +97,17 @@ def add_photo(
     detect: Detector,
     licence: str = "own-photo",
     attribution: str = "Mohamed",
+    source: str = SOURCE_KEY,
+    label_origin: str = "me",
+    ref: str | None = None,
+    author: str | None = None,
 ) -> AddResult:
+    """Check one photo and, if it's usable, store it and list it in ``source``'s
+    manifest. ``ref`` names it within the source (default: the original's hash)."""
     entry = breeds.get(breed)
     if entry.role != "train":
         raise ValueError(f"{entry.name} isn't a breed the model trains on")
-    ref = sha256_bytes(data)  # the original's hash, so the same photo is kept once
+    ref = ref or sha256_bytes(data)  # so the same photo is kept once
     try:
         img = decode(data)
     except ImageRejectedError:
@@ -111,7 +117,7 @@ def add_photo(
     if problem:
         return AddResult("left_out", problem)
     with _lock:
-        path = manifest_path(data_dir)
+        path = manifest_path(data_dir, source)
         rows = read_manifest(path) if path.exists() else []
         same = next((r for r in rows if r.source_ref == ref), None)
         if same is not None:
@@ -122,15 +128,16 @@ def add_photo(
         rows.append(
             ManifestRow(
                 image_id=stored.image_id,
-                source=SOURCE_KEY,
+                source=source,
                 source_ref=ref,
                 licence=licence,
                 attribution=attribution,
                 species=entry.species,
                 breed=breed,
-                label_origin="me",
+                label_origin=label_origin,
                 width=stored.original_width,
                 height=stored.original_height,
+                author=author,
                 bbox=box,
                 flags=list(stored.flags),
             )
@@ -139,9 +146,14 @@ def add_photo(
     return AddResult("added", None, stored.image_id)
 
 
-def counts(data_dir: Path) -> dict[str, int]:
+def known_refs(data_dir: Path, source: str) -> set[str]:
+    path = manifest_path(data_dir, source)
+    return {r.source_ref for r in read_manifest(path)} if path.exists() else set()
+
+
+def counts(data_dir: Path, source: str = SOURCE_KEY) -> dict[str, int]:
     """Photos loaded so far, per breed."""
-    path = manifest_path(data_dir)
+    path = manifest_path(data_dir, source)
     rows = read_manifest(path) if path.exists() else []
     return dict(sorted(Counter(r.breed for r in rows).items()))
 

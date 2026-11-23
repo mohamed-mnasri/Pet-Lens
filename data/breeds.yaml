@@ -28,11 +28,27 @@ breeds:
   # --depth at 1 or breed photos (Siberian, Turkish Van, ...) would be labelled domestic.
   - {id: domestic_cat, name: Domestic cat (no clear breed), species: cat, role: train, commons_categories: [Domestic short-haired cats, Long-haired cats]}
 
-  # Cats: breeds Oxford doesn't have, kept for the unknown-breed test
-  - {id: norwegian_forest_cat, name: Norwegian Forest Cat, species: cat, role: unknown, commons_categories: [Norwegian Forest Cats]}
-  - {id: scottish_fold, name: Scottish Fold, species: cat, role: unknown, commons_categories: [Scottish Fold cats]}
-  - {id: devon_rex, name: Devon Rex, species: cat, role: unknown, commons_categories: [Devon Rex]}
-  - {id: exotic_shorthair, name: Exotic Shorthair, species: cat, role: unknown, commons_categories: [Exotic Shorthair cats]}
+  # Cats: popular breeds Oxford doesn't have (Step 9f). They learn from Commons photos,
+  # my licensed folders and the web sources; no Oxford test set for them.
+  - {id: scottish_fold, name: Scottish Fold, species: cat, role: train, commons_categories: [Scottish Fold cats]}
+  - {id: norwegian_forest_cat, name: Norwegian Forest Cat, species: cat, role: train, commons_categories: [Norwegian Forest Cats]}
+  - {id: himalayan, name: Himalayan, species: cat, role: train, commons_categories: [Himalayan cats]}
+  - {id: exotic_shorthair, name: Exotic Shorthair, species: cat, role: train, commons_categories: [Exotic Shorthair cats]}
+  - {id: devon_rex, name: Devon Rex, species: cat, role: train, commons_categories: [Devon Rex]}
+  - {id: siberian, name: Siberian, species: cat, role: train, commons_categories: [Siberian cats]}
+  - {id: american_shorthair, name: American Shorthair, species: cat, role: train, commons_categories: [American Shorthair]}
+  - {id: burmese, name: Burmese, species: cat, role: train, commons_categories: [Burmese cats]}
+  - {id: cornish_rex, name: Cornish Rex, species: cat, role: train, commons_categories: [Cornish Rex]}
+  - {id: oriental_shorthair, name: Oriental Shorthair, species: cat, role: train, commons_categories: [Oriental Shorthair]}
+  - {id: turkish_angora, name: Turkish Angora, species: cat, role: train, commons_categories: [Turkish Angora]}
+  - {id: savannah, name: Savannah, species: cat, role: train, commons_categories: [Savannah cats]}
+
+  # Cats: real breeds kept out of training, used only for the unknown-breed test
+  - {id: chartreux, name: Chartreux, species: cat, role: unknown, commons_categories: [Chartreux]}
+  - {id: turkish_van, name: Turkish Van, species: cat, role: unknown, commons_categories: [Turkish Van]}
+  - {id: korat, name: Korat, species: cat, role: unknown, commons_categories: [Korat]}
+  - {id: selkirk_rex, name: Selkirk Rex, species: cat, role: unknown, commons_categories: [Selkirk Rex]}
+  - {id: manx, name: Manx, species: cat, role: unknown, commons_categories: [Manx cats]}
 
   # Dogs: the 25 Oxford breeds
   - {id: american_bulldog, name: American Bulldog, species: dog, role: train, oxford_label: american_bulldog}
@@ -67,3 +83,11 @@ close_pairs:
   - [birman, ragdoll]
   - [british_shorthair, russian_blue]
   - [american_pit_bull_terrier, staffordshire_bull_terrier]
+  - [himalayan, persian]
+  - [exotic_shorthair, persian]
+  - [scottish_fold, british_shorthair]
+  - [norwegian_forest_cat, maine_coon]
+  - [norwegian_forest_cat, siberian]
+  - [devon_rex, cornish_rex]
+  - [burmese, bombay]
+  - [oriental_shorthair, siamese]

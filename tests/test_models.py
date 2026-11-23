@@ -80,7 +80,7 @@ def test_train_end_to_end_on_synthetic_embeddings() -> None:
     assert set(heads) == {"cat", "dog"}
     cat = metrics["cat"]
     assert isinstance(cat, dict)
-    assert cat["split_sizes"]["train"] == 13 * 12
+    assert cat["split_sizes"]["train"] == 25 * 12
     assert cat["tests"]["test_in_domain"]["calibrated"]["top1"] > 0.9
     assert cat["domestic_test_called_a_breed"] < 0.5
     assert [p["fraction"] for p in cat["learning_curve"]] == [0.25, 0.5, 1.0]
@@ -201,6 +201,23 @@ def test_screening_admits_agreement_and_queues_disagreement() -> None:
     cat = metrics["cat"]
     assert isinstance(cat, dict)
     assert cat["admitted_commons"] == 200
+
+
+def test_screening_covers_openverse_and_waits_for_unseeded_breeds() -> None:
+    from petlens.models import screening
+
+    rows, emb, centres = _synthetic()
+    rows = [r for r in rows if r.breed != "savannah"]  # no trusted Savannah photos yet
+    rows.append(_row("sav", "savannah", "train", "commons", "cat"))
+    emb["sav"] = centres["savannah"].astype(np.float32)
+    rows.append(_row("ov", "ragdoll", "train", "openverse", "cat"))
+    emb["ov"] = centres["ragdoll"].astype(np.float32)
+    rows.append(_row("mine", "ragdoll", "train", "licensed", "cat"))
+    emb["mine"] = centres["ragdoll"].astype(np.float32)
+    results = {r.image_id: r for r in screening.screen(rows, emb, BREEDS)}
+    assert "sav" not in results and "mine" not in results  # unseeded; trusted
+    assert results["ov"].decision.startswith("admit")
+    assert train.in_v0_training_pool(rows[-1]) and not train.in_v0_training_pool(rows[-2])
 
 
 def test_drop_leaks_removes_copies_of_training_images() -> None:

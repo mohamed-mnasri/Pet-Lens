@@ -30,3 +30,20 @@ sources:
     attribution: Per file, from the Commons file page (author, licence, URL).
     # Fetched in Step 2 part 2. Anything not on this list is skipped.
     licence_allowlist: [CC0, Public domain, CC BY, CC BY-SA]
+
+  openverse:
+    name: Openverse
+    version: live
+    homepage: https://openverse.org/
+    licence: per file
+    attribution: Per file, from Openverse (title, creator, licence, landing page).
+    # Only licences that allow reuse, including commercial; Wikimedia results are skipped
+    # because the commons source already covers them.
+    licence_allowlist: [CC0, Public domain, CC BY, CC BY-SA]
+
+  licensed:
+    name: My licensed breed folders
+    version: live
+    homepage: https://github.com/mohamed-mnasri/petlens
+    licence: per folder import (recorded on every photo)
+    attribution: As given when the folder was imported.

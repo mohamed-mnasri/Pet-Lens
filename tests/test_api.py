@@ -413,7 +413,7 @@ def test_jobs_list_and_limits(client: TestClient, tmp_path: Path) -> None:
 def test_training_photos(client: TestClient) -> None:
     breeds = client.get("/breeds").json()
     assert {"id": "ragdoll", "name": "Ragdoll", "species": "cat"} in breeds
-    assert all(b["id"] != "scottish_fold" for b in breeds)  # unknown-breed test only
+    assert all(b["id"] != "chartreux" for b in breeds)  # unknown-breed test only
     r = client.post(
         "/training-photos", data={"breed": "ragdoll"}, files={"file": ("a.jpg", _cat_photo())}
     )

@@ -9,10 +9,10 @@ def test_breeds_yaml_is_valid_and_complete() -> None:
     assert len(cat.by_oxford_label()) == 37
     cats = cat.training_classes("cat")
     dogs = cat.training_classes("dog")
-    assert len(cats) == 13 and "domestic_cat" in cats
+    assert len(cats) == 25 and "domestic_cat" in cats
     assert len(dogs) == 25
     unknown = {b.id for b in cat.breeds if b.role == "unknown"}
-    assert unknown == {"norwegian_forest_cat", "scottish_fold", "devon_rex", "exotic_shorthair"}
+    assert unknown == {"chartreux", "turkish_van", "korat", "selkirk_rex", "manx"}
     # Unknown breeds are never Oxford breeds (Oxford breeds all stay in training).
     assert all(cat.get(u).oxford_label is None for u in unknown)
 

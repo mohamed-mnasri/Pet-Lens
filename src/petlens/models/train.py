@@ -34,9 +34,15 @@ POOL = ("train", "val", "calibration")
 LEAK_COSINE = 0.97  # held-out images this close to a training image are left out of evaluation
 
 
+# Sources whose labels I picked myself (my photos, my licensed breed folders): trusted
+# like Oxford, so they also seed screening for breeds Oxford doesn't have.
+TRUSTED_SOURCES = {"oxford", "own", "licensed"}
+
+
 def in_v0_training_pool(r: ManifestRow) -> bool:
-    """Oxford, or the domestic class from Commons. Unscreened Commons breeds are not."""
-    return r.source == "oxford" or r.breed == "domestic_cat"
+    """Oxford, my own and licensed folders, or the domestic class from Commons.
+    Unscreened Commons and Openverse breed photos are not."""
+    return r.source in TRUSTED_SOURCES or r.breed == "domestic_cat"
 
 
 NEVER_TRAIN_FLAGS = {"review_unsure", "audit_only"}

@@ -99,7 +99,7 @@ def _populate(fx: Fixture) -> None:
             fx.add("commons", f"File:u{u}_{k}.jpg", breed, seed, uploader=f"user{u}")
     for k in range(4):
         seed += 1
-        fx.add("commons", f"File:fold_{k}.jpg", "scottish_fold", seed, uploader="user0")
+        fx.add("commons", f"File:korat_{k}.jpg", "korat", seed, uploader="user0")
 
 
 def _by_ref(path: Path) -> dict[str, ManifestRow]:
@@ -139,7 +139,7 @@ def test_no_group_crosses_splits_and_every_row_is_attributed(tmp_path: Path) -> 
                 {"test_in_domain"} if r.source_split == "test" else {"train", "val", "calibration"}
             )
             assert r.split in expected
-        if r.breed == "scottish_fold":
+        if r.breed == "korat":
             assert r.split == "test_unknown"
         if r.split == "test_domestic":
             assert r.breed == "domestic_cat"
