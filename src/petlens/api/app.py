@@ -7,6 +7,7 @@ upload lands in Postgres, and every rejected one is logged to ``dead_letter``.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import asynccontextmanager
@@ -15,13 +16,15 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from petlens import contracts as c
 from petlens.api import ingest, service
 from petlens.config import Settings, get_settings
+from petlens.data.imaging import stored_path
 from petlens.db import models as m
 from petlens.db.session import get_engine
 from petlens.jobs import queue
@@ -29,6 +32,7 @@ from petlens.jobs.handlers import batch_files
 from petlens.vision.pipeline import Analyzer
 
 log = logging.getLogger(__name__)
+HEX64 = re.compile(r"[0-9a-f]{64}")
 
 
 class ReviewBatch(BaseModel):
@@ -124,6 +128,39 @@ def create_app(
         )
         session.commit()
         return c.Job.model_validate(job)
+
+    @app.get("/jobs", response_model=list[c.Job])
+    def list_jobs(session: DB, limit: int = 20) -> list[c.Job]:
+        jobs = session.scalars(
+            select(m.Job).order_by(m.Job.created_at.desc()).limit(min(max(limit, 1), 100))
+        )
+        return [c.Job.model_validate(j) for j in jobs]
+
+    @app.get("/limits")
+    def limits() -> dict[str, float]:
+        """Upload limits, so the page can check files before sending them."""
+        return {
+            "photo_max_bytes": cfg.photo_max_bytes,
+            "photo_max_pixels": cfg.photo_max_pixels,
+            "video_max_bytes": cfg.video_max_bytes,
+            "video_max_seconds": cfg.video_max_seconds,
+        }
+
+    folders = {
+        "train": cfg.processed_dir / "images",
+        "frames": cfg.uploads_dir / "frames",
+        "crops": cfg.uploads_dir / "crops",
+    }
+
+    @app.get("/images/{kind}/{image_id}")
+    def image(kind: str, image_id: str) -> FileResponse:
+        # Only content-hash names inside known folders: no path from the request is used.
+        if kind not in folders or not HEX64.fullmatch(image_id):
+            raise HTTPException(404, "No such image")
+        path = stored_path(folders[kind], image_id)
+        if not path.is_file():
+            raise HTTPException(404, "No such image")
+        return FileResponse(path, media_type="image/webp")
 
     @app.get("/jobs/{job_id}", response_model=c.Job)
     def get_job(job_id: uuid.UUID, session: DB) -> c.Job:

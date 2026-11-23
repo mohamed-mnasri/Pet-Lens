@@ -33,8 +33,12 @@ PAIRS = [
     (m.DatasetVersion, c.DatasetVersion),
     (m.ModelRegistry, c.ModelRegistry),
     (m.DeadLetter, c.DeadLetter),
+    (m.TrainImage, c.TrainImage),
 ]
-NOT_IN_CONTRACT = {("detection", "embedding")}  # 384 floats stay out of API payloads
+NOT_IN_CONTRACT = {
+    ("detection", "embedding"),
+    ("train_image", "embedding"),
+}  # 384 floats stay out of API payloads
 
 
 @pytest.mark.parametrize(("model", "contract"), PAIRS, ids=lambda x: getattr(x, "__name__", ""))

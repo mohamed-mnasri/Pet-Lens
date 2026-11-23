@@ -314,3 +314,96 @@ def test_storage_report_counts_files(tmp_path: Path) -> None:
     (tmp_path / "uploads" / "frames" / "a.webp").write_bytes(b"x" * 2048)
     text_out = report(Settings(data_dir=tmp_path))
     assert "uploads/frames" in text_out and "1" in text_out
+
+
+def _seed_index(tmp_path: Path) -> list[str]:
+    """Six ragdoll and three bengal training photos, with stored images for the ragdolls."""
+    from petlens.data.imaging import stored_path
+    from petlens.db.evidence import TrainRecord, replace_index
+    from petlens.db.session import session_scope
+
+    rng = np.random.default_rng(1)
+    records, ragdolls = [], []
+    for i in range(9):
+        breed, colour = ("ragdoll", RED) if i < 6 else ("bengal", (40, 40, 220))
+        vec = np.resize(np.array(colour) / 255, EMBEDDING_DIM) + rng.normal(
+            0, 0.01 * i, EMBEDDING_DIM
+        )
+        image_id = f"{i:064x}"
+        records.append(
+            TrainRecord(
+                image_id,
+                "cat",
+                breed,
+                "oxford",
+                f"ref{i}",
+                "CC-BY-SA-4.0",
+                "someone",
+                [float(v) for v in vec],
+            )
+        )
+        if breed == "ragdoll":
+            ragdolls.append(image_id)
+            path = stored_path(tmp_path / "processed" / "images", image_id)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            Image.new("RGB", (8, 8), RED).save(path, "WEBP")
+    with session_scope(DATABASE_URL) as session:
+        assert replace_index(session, records, "v-test", "fake") == 9
+    return ragdolls
+
+
+@pytest.mark.db
+def test_evidence_shows_nearest_photos_of_the_suggested_breed(
+    client: TestClient, tmp_path: Path
+) -> None:
+    ragdolls = _seed_index(tmp_path)
+    run = client.post("/predict/image", files={"file": ("cat.jpg", _cat_photo())}).json()
+    pred = run["predictions"][0]
+    evidence = run["evidence"][pred["id"]]
+    assert len(evidence) == 5
+    assert all(e["breed"] == "ragdoll" for e in evidence)
+    sims = [e["similarity"] for e in evidence]
+    assert sims == sorted(sims, reverse=True)
+    assert evidence[0]["image_id"] == ragdolls[0]  # the least noisy copy is the closest
+    assert evidence[0]["licence"] == "CC-BY-SA-4.0"
+    r = client.get(evidence[0]["url"])
+    assert r.status_code == 200 and r.headers["content-type"] == "image/webp"
+    frame = client.get(f"/images/frames/{run['frames'][0]['image_id']}")
+    assert frame.status_code == 200
+
+
+@pytest.mark.db
+def test_group_evidence_for_clips(client: TestClient, tmp_path: Path) -> None:
+    pytest.importorskip("av")
+    _seed_index(tmp_path)
+    run = client.post(
+        "/predict/video", files={"file": ("cat.mp4", _clip(tmp_path / "c.mp4", 3))}
+    ).json()
+    assert all(d["group_idx"] == 0 for d in run["detections"])
+    pred = run["predictions"][0]
+    assert [e["breed"] for e in run["evidence"][pred["id"]]] == ["ragdoll"] * 5
+
+
+@pytest.mark.db
+@pytest.mark.parametrize(
+    "url", ["/images/train/" + "0" * 63, "/images/secrets/" + "0" * 64, "/images/train/..%2F.env"]
+)
+def test_image_route_only_serves_known_hashes(client: TestClient, url: str) -> None:
+    assert client.get(url).status_code == 404
+
+
+@pytest.mark.db
+def test_jobs_list_and_limits(client: TestClient, tmp_path: Path) -> None:
+    folder = tmp_path / "batch"
+    folder.mkdir()
+    (folder / "a.jpg").write_bytes(_cat_photo())
+    r = client.post("/jobs/review-batch", json={"folder": str(folder)})
+    assert r.status_code == 202
+    assert r.json()["progress_total"] == 1
+    jobs = client.get("/jobs").json()
+    assert [j["id"] for j in jobs] == [r.json()["id"]]
+    assert (
+        client.post("/jobs/review-batch", json={"folder": str(tmp_path / "nope")}).status_code
+        == 422
+    )
+    assert client.get("/limits").json()["video_max_seconds"] == 10.0

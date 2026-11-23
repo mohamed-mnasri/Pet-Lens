@@ -59,6 +59,8 @@ class GroupResult:
     species: str
     frames: list[int]
     decision: Decision
+    # (position in ClipResult.frames, index in that frame's animals) for each member
+    members: list[tuple[int, int]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -111,11 +113,13 @@ def analyse_clip(a: Analyzer, frames: list[Frame]) -> ClipResult:
     per_frame = [analyse_image(a, f.image) for f in frames]
     items: list[Item] = []
     refs: list[AnimalResult] = []
-    for f, res in zip(frames, per_frame, strict=True):
-        for animal in res.animals:
+    where: list[tuple[int, int]] = []
+    for pos, (f, res) in enumerate(zip(frames, per_frame, strict=True)):
+        for j, animal in enumerate(res.animals):
             x0, y0, x1, y1 = animal.box
             items.append(Item(f.index, animal.species, animal.embedding, (x1 - x0) * (y1 - y0)))
             refs.append(animal)
+            where.append((pos, j))
     grouping = group_items(items, a.grouping)
     groups: list[GroupResult] = []
     if not grouping.ambiguous:
@@ -125,7 +129,8 @@ def analyse_clip(a: Analyzer, frames: list[Frame]) -> ClipResult:
             probs = np.mean([m.probs for m in members], axis=0)
             dist = float(np.mean([m.knn_distance for m in members]))
             dec = decide(probs, head.classes, dist, g.species, a.policy, a.close_pairs)
-            groups.append(GroupResult(g.species, sorted(g.frames), dec))
+            spots = sorted(where[i] for i in g.members)
+            groups.append(GroupResult(g.species, sorted(g.frames), dec, spots))
     return ClipResult(
         groups, per_frame, grouping.ambiguous, grouping.reason, time.perf_counter() - start
     )

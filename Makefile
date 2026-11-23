@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade api storage-report worker review-batch jobs-status data data-oxford data-commons data-build install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status data data-oxford data-commons data-build install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -33,6 +33,10 @@ db-migrate:
 
 db-downgrade:
 	uv run python -m petlens.db downgrade
+
+# Copy the training embeddings into Postgres for the evidence panel. Rerun after make train.
+db-index:
+	uv run python -m petlens.db index
 
 # API on http://127.0.0.1:8000 (docs at /docs). Needs the database and the ml extra.
 api:

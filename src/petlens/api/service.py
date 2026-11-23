@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from PIL import Image
+from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -28,6 +29,7 @@ from petlens.data.imaging import (
     stored_path,
 )
 from petlens.db import models as m
+from petlens.db.evidence import evidence_for
 from petlens.models.policy import Decision
 from petlens.vision.pipeline import Analyzer, ImageResult, analyse_clip, analyse_image
 from petlens.vision.video import Frame, sample_frames
@@ -40,6 +42,8 @@ class Run(c.Contract):
     frames: list[c.Frame]
     detections: list[c.Detection]
     predictions: list[c.Prediction]
+    # prediction id -> nearest training photos
+    evidence: dict[str, list[c.Evidence]] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -108,7 +112,9 @@ def _store_frame(
     res: ImageResult,
     version: str,
     per_detection_predictions: bool,
+    group_of: dict[int, int] | None = None,
 ) -> None:
+    """Store one frame and its detections. ``group_of`` maps animal index to clip group."""
     stored = _write(res.image, settings.uploads_dir / "frames", DEFAULT_POLICY)
     frame = m.Frame(
         upload_id=upload.id,
@@ -127,7 +133,7 @@ def _store_frame(
     crop_policy = StoragePolicy(
         long_edge=settings.crop_long_edge, max_bytes=settings.crop_max_bytes
     )
-    for animal in res.animals:
+    for j, animal in enumerate(res.animals):
         crop = resize_long_edge(_crop(res.image, animal.box), settings.crop_long_edge)
         crop_stored = _write(crop, settings.uploads_dir / "crops", crop_policy)
         x0, y0, x1, y1 = animal.box
@@ -143,6 +149,7 @@ def _store_frame(
             crop_path=str(crop_stored.path),
             embedding=emb if len(emb) == c.EMBEDDING_DIM else None,
             embed_model=version,
+            group_idx=(group_of or {}).get(j),
         )
         session.add(det)
         session.flush()
@@ -224,9 +231,21 @@ def process_video(
         Frame(f.index, f.seconds, resize_long_edge(f.image, DEFAULT_POLICY.long_edge)) for f in raw
     ]
     clip = analyse_clip(analyzer, frames)
-    for f, res in zip(frames, clip.frames, strict=True):
+    group_of: dict[tuple[int, int], int] = {
+        spot: gi for gi, g in enumerate(clip.groups) for spot in g.members
+    }
+    for pos, (f, res) in enumerate(zip(frames, clip.frames, strict=True)):
+        in_frame = {j: gi for (p, j), gi in group_of.items() if p == pos}
         _store_frame(
-            session, settings, upload, f.index, f.seconds, res, analyzer.version, clip.ambiguous
+            session,
+            settings,
+            upload,
+            f.index,
+            f.seconds,
+            res,
+            analyzer.version,
+            clip.ambiguous,
+            in_frame,
         )
     for i, g in enumerate(clip.groups):
         session.add(
@@ -280,4 +299,5 @@ def load_run(session: Session, upload_id: uuid.UUID) -> Run | None:
         frames=[c.Frame.model_validate(f) for f in frames],
         detections=[c.Detection.model_validate(d) for d in detections],
         predictions=[c.Prediction.model_validate(p) for p in predictions],
+        evidence={str(p.id): evidence_for(session, p) for p in predictions},
     )

@@ -74,6 +74,7 @@ class Detection(Contract):
     y1: float = Field(ge=0, le=1)
     crop_path: str | None = None
     embed_model: str | None = None
+    group_idx: int | None = Field(default=None, ge=0)
     created_at: datetime
 
 
@@ -156,3 +157,28 @@ class DeadLetter(Contract):
     size_bytes: int | None = None
     payload: dict[str, Any]
     created_at: datetime
+
+
+class TrainImage(Contract):
+    image_id: str
+    dataset_version: str
+    species: Species
+    breed: str
+    source: str
+    source_ref: str | None = None
+    licence: str | None = None
+    attribution: str | None = None
+    embed_model: str
+
+
+class Evidence(BaseModel):
+    """One of the most similar training photos for a suggested breed."""
+
+    image_id: str
+    breed: str
+    similarity: float
+    url: str
+    source: str
+    source_ref: str | None = None
+    licence: str | None = None
+    attribution: str | None = None

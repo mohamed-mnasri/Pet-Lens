@@ -120,6 +120,7 @@ class Detection(Base):
     crop_path: Mapped[str | None] = mapped_column(Text)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(c.EMBEDDING_DIM))
     embed_model: Mapped[str | None] = mapped_column(String(128))
+    group_idx: Mapped[int | None] = mapped_column(Integer)  # appearance group in a clip
     created_at: Mapped[datetime] = _created()
 
 
@@ -243,3 +244,24 @@ class DeadLetter(Base):
     size_bytes: Mapped[int | None] = mapped_column(BigInteger)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     created_at: Mapped[datetime] = _created()
+
+
+class TrainImage(Base):
+    """Training images with their embeddings, for the evidence panel (nearest examples)."""
+
+    __tablename__ = "train_image"
+    __table_args__ = (
+        _in("species", c.Species),
+        Index("ix_train_image_species_breed", "species", "breed"),
+    )
+
+    image_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    dataset_version: Mapped[str] = mapped_column(String(64))
+    species: Mapped[str] = mapped_column(String(8))
+    breed: Mapped[str] = mapped_column(String(64))
+    source: Mapped[str] = mapped_column(String(32))
+    source_ref: Mapped[str | None] = mapped_column(Text)
+    licence: Mapped[str | None] = mapped_column(String(64))
+    attribution: Mapped[str | None] = mapped_column(Text)
+    embedding: Mapped[list[float]] = mapped_column(Vector(c.EMBEDDING_DIM))
+    embed_model: Mapped[str] = mapped_column(String(128))
