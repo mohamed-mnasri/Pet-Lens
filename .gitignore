@@ -16,6 +16,7 @@ htmlcov/
 
 # Data, weights and footage live outside the repo (D:\petlens-data)
 /.petlens-data/
+/.petlens-demo/
 /data/*
 !/data/*.yaml
 !/data/manifests/

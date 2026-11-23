@@ -1,7 +1,21 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt golden register gate promote registry finetune ablation regression-update vlm-pull vlm-screen vlm-export vlm-report vlm-breeds pets-match pets-eval install-ml embed screen train analyse
+.PHONY: up demo cards install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt golden register gate promote registry finetune ablation regression-update vlm-pull vlm-screen vlm-export vlm-report vlm-breeds pets-match pets-eval install-ml embed screen train analyse
 
 install:
 	uv sync
+
+# Step 17: from a fresh clone, `make up && make demo`. up starts Postgres and migrates;
+# demo seeds a separate petlens_demo database and opens the page (no dataset needed).
+up:
+	uv sync --group dbt
+	docker compose up -d --wait db
+	uv run python -m petlens.db upgrade
+
+demo:
+	uv run --group dbt python -m petlens.demo
+
+# Model card, dataset card and attribution list, from the registry and the manifests.
+cards:
+	uv run python -m petlens.cards
 
 lint:
 	uv run ruff check .

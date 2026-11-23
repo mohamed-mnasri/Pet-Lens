@@ -354,7 +354,10 @@ def pets_tab(api: api_client.ApiClient) -> None:
             crops = pet["crops"][:6]
             if crops:
                 for col, crop in zip(st.columns(6), crops, strict=False):
-                    col.image(api.image(f"/images/crops/{crop}"), width="stretch")
+                    try:
+                        col.image(api.image(f"/images/crops/{crop}"), width="stretch")
+                    except api_client.ApiError:
+                        col.caption("Photo no longer stored")
             name_col, merge_col = st.columns(2)
             with name_col.form(f"name-{pet['id']}", border=False):
                 new = st.text_input("Name", value=pet["name"] or "", key=f"pn-{pet['id']}")

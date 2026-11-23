@@ -58,8 +58,8 @@ def synthetic_rows(
     return rows, emb
 
 
-def main() -> None:
-    url = get_settings().database_url
+def main(url: str | None = None) -> None:
+    url = url or get_settings().database_url
     engine = create_engine(url)
     with engine.begin() as conn:
         for schema in DBT_SCHEMAS:

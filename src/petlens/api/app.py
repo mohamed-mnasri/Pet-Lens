@@ -72,9 +72,13 @@ DB = Annotated[Session, Depends(_session)]
 
 
 def create_app(
-    settings: Settings | None = None, analyzer: Callable[[], Analyzer] | None = None
+    settings: Settings | None = None,
+    analyzer: Callable[[], Analyzer] | None = None,
+    require_models: bool = True,
 ) -> FastAPI:
-    """Build the app. Tests pass their own settings and a fake analyzer."""
+    """Build the app. Tests pass their own settings and a fake analyzer. With
+    ``require_models=False`` (the demo) the app starts without a trained model and the
+    endpoints that need one answer 503."""
     cfg = settings or get_settings()
     factory = sessionmaker(get_engine(cfg.database_url), expire_on_commit=False)
 
@@ -84,12 +88,30 @@ def create_app(
 
         return load_analyzer(cfg, cfg.detector_size)
 
-    get_analyzer = analyzer or default_analyzer
+    load = analyzer or default_analyzer
+    no_model: list[str] = []
+
+    def get_analyzer() -> Analyzer:
+        if no_model:
+            raise HTTPException(503, no_model[0])
+        try:
+            return load()
+        except (Exception, SystemExit) as exc:
+            if require_models:
+                raise
+            no_model.append(
+                f"No trained model on this machine ({exc}). The demo shows everything "
+                "else; `make train` gives it a model."
+            )
+            raise HTTPException(503, no_model[0]) from exc
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         # Load the models before the first request (about 70 s cold), not during it.
-        get_analyzer()
+        try:
+            get_analyzer()
+        except HTTPException as exc:
+            log.warning("%s", exc.detail)
         yield
 
     app = FastAPI(title="PetLens", version="0.1.0", lifespan=lifespan)
