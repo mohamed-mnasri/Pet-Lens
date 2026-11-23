@@ -340,7 +340,10 @@ def show_training_result(done: dict[str, Any]) -> None:
 def main() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
     st.title("🐾 PetLens")
-    st.caption("Cat and dog breeds, with a model that says when it isn't sure.")
+    st.caption(
+        "Identify cat and dog breeds from a photo or video, "
+        "with confidence scores for every answer."
+    )
     base_url = os.environ.get("PETLENS_API_URL", api_client.DEFAULT_URL)
     api = get_client(base_url)
     if not api.health():
