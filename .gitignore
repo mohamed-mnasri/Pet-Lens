@@ -43,6 +43,10 @@ Thumbs.db
 !/data/screening/*.parquet
 !/data/reviews/
 !/data/reviews/*.parquet
+!/data/golden/
+!/data/golden/*.parquet
+!/data/vlm/
+!/data/vlm/*.parquet
 
 # dbt (Step 10)
 /dbt/target/
