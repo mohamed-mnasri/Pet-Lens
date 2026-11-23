@@ -202,6 +202,25 @@ class _FakeApi:
     def training_photo_counts(self) -> dict[str, int]:
         return {"birman": 2, "ragdoll": 5}
 
+    def pets(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": "p1",
+                "name": "Milo",
+                "species": "cat",
+                "status": "named",
+                "photos": 3,
+                "first_seen": "2026-11-20T10:00:00",
+                "last_seen": "2026-11-23T10:00:00",
+                "consensus_breed": "british_shorthair",
+                "consistency": 0.67,
+                "crops": [],
+            }
+        ]
+
+    def pet(self, pet_id: str) -> dict[str, Any]:
+        return self.pets()[0] | {"all_photos": []}
+
     def model_health(self) -> dict[str, Any]:
         return {
             "ready": True,
@@ -265,6 +284,9 @@ def test_page_renders_limits_and_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not at.exception
     assert any(s.label == "Or type the breed" for s in at.selectbox)
     assert {"Not a cat or dog", "Skip"} <= {b.label for b in at.button}
+    # Pets: name, photo count and what the model usually calls it.
+    assert any("🐱 Milo" in m.value for m in at.markdown)
+    assert any("usually called British Shorthair (67% of photos)" in c.value for c in at.caption)
     # Model health: the champion and the latest evaluation, from the marts.
     assert any("Serving **20261123T120000Z-v2**" in m.value for m in at.markdown)
     assert any(s.value == "Latest evaluation" for s in at.subheader)

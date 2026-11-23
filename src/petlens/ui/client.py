@@ -50,6 +50,29 @@ class ApiClient:
         result: dict[str, Any] = self._json(self.http.get(f"/runs/{upload_id}"))
         return result
 
+    def pets(self) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = self._json(self.http.get("/pets"))
+        return result
+
+    def pet(self, pet_id: str) -> dict[str, Any]:
+        result: dict[str, Any] = self._json(self.http.get(f"/pets/{pet_id}"))
+        return result
+
+    def name_pet(self, pet_id: str, name: str) -> None:
+        self._json(self.http.post(f"/pets/{pet_id}/name", json={"name": name}))
+
+    def merge_pets(self, source: str, target: str) -> None:
+        self._json(self.http.post("/pets/merge", json={"source": source, "target": target}))
+
+    def split_pet(self, pet_id: str, detection_ids: list[str]) -> str:
+        r = self._json(
+            self.http.post(f"/pets/{pet_id}/split", json={"detection_ids": detection_ids})
+        )
+        return str(r["pet_id"])
+
+    def confirm_photo(self, detection_id: str) -> None:
+        self._json(self.http.post(f"/detections/{detection_id}/confirm"))
+
     def model_health(self) -> dict[str, Any]:
         result: dict[str, Any] = self._json(self.http.get("/model-health"))
         return result

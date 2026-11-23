@@ -16,6 +16,11 @@ sources:
       - name: eval_image
       - name: dataset_count
       - name: model_registry
+      - name: frame
+      - name: detection
+      - name: pet
+      - name: identity_event
+        description: Append-only changes to which animal is which pet.
       - name: vlm_tag
         description: VLM screener answers, one per image, prompt version and model.
         description: Every registered training run and which one is the champion.

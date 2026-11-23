@@ -23,6 +23,9 @@ CardState = Literal["pending", "done"]
 JobState = Literal["queued", "running", "done", "failed", "dead"]
 DeadLetterSource = Literal["api", "worker"]
 VlmStatus = Literal["ok", "parse_failed"]
+PetStatus = Literal["candidate", "named", "merged"]
+IdentityAction = Literal["assign", "new_pet", "confirm", "move", "name", "merge", "split"]
+IdentityOrigin = Literal["model", "me"]
 VlmKind = Literal["photo", "drawing", "toy", "other"]
 
 EMBEDDING_DIM = 384  # DINOv2 ViT-S/14
@@ -79,6 +82,7 @@ class Detection(Contract):
     crop_path: str | None = None
     embed_model: str | None = None
     group_idx: int | None = Field(default=None, ge=0)
+    pet_id: UUID | None = None
     created_at: datetime
 
 
@@ -171,6 +175,27 @@ class VlmTag(Contract):
     attempts: int
     seconds: float
     raw: str
+    created_at: datetime
+
+
+class Pet(Contract):
+    id: UUID
+    species: Species
+    name: str | None = None
+    status: PetStatus
+    merged_into: UUID | None = None
+    created_at: datetime
+
+
+class IdentityEvent(Contract):
+    id: int
+    pet_id: UUID
+    detection_id: UUID | None = None
+    other_pet_id: UUID | None = None
+    action: IdentityAction
+    origin: IdentityOrigin
+    value: str | None = None
+    distance: float | None = None
     created_at: datetime
 
 

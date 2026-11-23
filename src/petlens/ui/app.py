@@ -337,6 +337,59 @@ def show_training_result(done: dict[str, Any]) -> None:
                     st.write(f"**{name}**: {r['reason']}")
 
 
+def pets_tab(api: api_client.ApiClient) -> None:
+    st.caption(
+        "Every animal you upload is matched to the pets seen before. Name your pets, merge "
+        "two that are the same animal, or split off photos of a different one."
+    )
+    pets = api.pets()
+    if not pets:
+        st.info("No pets yet. Identify a photo or clip of your cat or dog first.")
+        return
+    names = {p["id"]: view.pet_title(p) for p in pets}
+    for pet in pets:
+        with st.container(border=True):
+            st.markdown(f"**{view.pet_title(pet)}**")
+            st.caption(view.pet_caption(pet))
+            crops = pet["crops"][:6]
+            if crops:
+                for col, crop in zip(st.columns(6), crops, strict=False):
+                    col.image(api.image(f"/images/crops/{crop}"), width="stretch")
+            name_col, merge_col = st.columns(2)
+            with name_col.form(f"name-{pet['id']}", border=False):
+                new = st.text_input("Name", value=pet["name"] or "", key=f"pn-{pet['id']}")
+                if st.form_submit_button("Save name") and new.strip():
+                    api.name_pet(pet["id"], new)
+                    st.rerun()
+            others = [i for i in names if i != pet["id"] and i in names]
+            with merge_col.form(f"merge-{pet['id']}", border=False):
+                target = st.selectbox(
+                    "Same animal as",
+                    others,
+                    index=None,
+                    format_func=names.__getitem__,
+                    key=f"pm-{pet['id']}",
+                )
+                if st.form_submit_button("Merge into it") and target:
+                    try:
+                        api.merge_pets(pet["id"], target)
+                        st.rerun()
+                    except api_client.ApiError as exc:
+                        st.error(exc.detail)
+            with st.expander("Split off photos of a different animal"):
+                detail = api.pet(pet["id"])
+                shots = {s["detection_id"]: s for s in detail["all_photos"]}
+                labels = {
+                    d: f"{str(s['seen_at'])[:16]} ({s['top1'] or '?'})" for d, s in shots.items()
+                }
+                picked = st.multiselect(
+                    "Photos", list(shots), format_func=labels.__getitem__, key=f"ps-{pet['id']}"
+                )
+                if picked and st.button("Split them off", key=f"psb-{pet['id']}"):
+                    api.split_pet(pet["id"], picked)
+                    st.rerun()
+
+
 def health_tab(api: api_client.ApiClient) -> None:
     data = api.model_health()
     if not data.get("ready"):
@@ -410,11 +463,20 @@ def main() -> None:
         st.error(f"The API isn't answering at {base_url}. Start it with `make api`.")
         st.stop()
     limits = api.limits()
-    upload, review, training, health, jobs = st.tabs(
-        ["📷 Identify", "👆 Review", "🖼️ Training photos", "📈 Model health", "⚙️ Batch jobs"]
+    upload, pets, review, training, health, jobs = st.tabs(
+        [
+            "📷 Identify",
+            "🐾 Pets",
+            "👆 Review",
+            "🖼️ Training photos",
+            "📈 Model health",
+            "⚙️ Batch jobs",
+        ]
     )
     with upload:
         upload_tab(api, limits)
+    with pets:
+        pets_tab(api)
     with review:
         review_tab(api, api.breeds())
     with training:

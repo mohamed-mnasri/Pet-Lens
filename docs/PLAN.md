@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 15. Pet profiles
+**Current step:** 16. Live camera page
 **Last updated:** 2026-11-23
 
 ## Principles I'm holding myself to
@@ -31,7 +31,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 12 | Fine-tuning ablations (Phase 2 gate) | 2: Data engineering | Done in code (Phase 2 gate waits on 300+ reviews) |
 | 13 | VLM image screener | 3: VLM and pets | Done in code (needs Ollama runs on my PC) |
 | 14 | VLM breed-naming experiment | 3: VLM and pets | Done in code (result goes in the README) |
-| 15 | Pet profiles (Phase 3 gate) | 3: VLM and pets | Not started |
+| 15 | Pet profiles (Phase 3 gate) | 3: VLM and pets | Done in code (re-ID numbers need my named pets) |
 | 16 | Live camera page | 4: Live and presentation | Not started |
 | 17 | One-command demo, README, model and dataset cards, ADRs | 4: Live and presentation | Not started |
 | 18 | Demo video and write-up | 4: Live and presentation | Not started |
@@ -373,6 +373,14 @@ Implementation notes: `make vlm-breeds` (`LIMIT=300` photos per set by default i
 - Unmatched animals become candidate pets.
 - I can name, merge or split pets. Every change is an append-only `identity_event`, and the dbt snapshot keeps the history.
 - The Pets page shows photos, first and last seen, and the consensus breed with how consistently the model agrees with itself.
+
+Implementation notes:
+
+- 15a (matching): after a photo or clip is stored, every animal without a pet is matched (`petlens.pets.match`): one clip appearance group is one unit (mean embedding); its 5 nearest assigned animals of the same species (pgvector cosine distance) vote, and the pet with most neighbours within 0.30 wins, else the animal becomes a new candidate pet. `make pets-match` catches up on uploads from before this step.
+- 15b (my changes): the new Pets tab names a pet, merges two that are the same animal, and splits off photos of a different one; the API also confirms or moves single photos. Each change is an append-only `identity_event` (migration 0008, a trigger refuses UPDATE and DELETE) with origin `model` or `me`, and `detection.pet_id` holds the current answer. dbt snapshots `snap_pet_assignment` and `snap_pets` keep the history of every move, merge, split and rename; `mart_pets` counts photos, first and last seen, and changes by the matcher versus me.
+- 15c (profiles): each pet shows its latest photos, first and last seen, and the consensus breed: the most common top-1 answer over its photos, with the share that agree (how consistently the model agrees with itself about one animal).
+- 15d (re-ID): `make pets-eval` replays the matcher on my labelled photos (photos of named pets, plus ones I confirmed, moved or split off) at thresholds 0.15 to 0.45 and writes pairwise precision and recall, the best threshold, and the failures (an animal split across pets, a pet mixing animals) to `docs/results/pets-reid.md`.
+- Not yet: the 20-photos-per-cat cap in training, because my own cat photos don't go through the training pipeline by identity yet.
 
 **Phase 3 gate:** VLM tags are measured, and my pets group correctly, with re-ID precision and recall on my own labelled photos reported, including failures. Tag `v0.4.0`.
 

@@ -1,6 +1,6 @@
 """SQLAlchemy models for the operational tables (SPEC section 9).
 
-The pet identity tables (Step 15) arrive with their step.
+Pet identity (Step 15): ``pet``, ``identity_event`` and ``detection.pet_id``.
 """
 
 from __future__ import annotations
@@ -121,6 +121,10 @@ class Detection(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(c.EMBEDDING_DIM))
     embed_model: Mapped[str | None] = mapped_column(String(128))
     group_idx: Mapped[int | None] = mapped_column(Integer)  # appearance group in a clip
+    # The pet this animal is (Step 15); every change is also an identity_event.
+    pet_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("pet.id", ondelete="SET NULL"), index=True
+    )
     created_at: Mapped[datetime] = _created()
 
 
@@ -444,4 +448,44 @@ class VlmTag(Base):
     attempts: Mapped[int] = mapped_column(Integer)
     seconds: Mapped[float] = mapped_column(Float)
     raw: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = _created()
+
+
+# --- pet profiles (Step 15) ----------------------------------------------------------
+
+
+class Pet(Base):
+    """One of my animals (or a candidate the matcher hasn't seen before)."""
+
+    __tablename__ = "pet"
+    __table_args__ = (_in("species", c.Species), _in("status", c.PetStatus))
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    species: Mapped[str] = mapped_column(String(8))
+    name: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16), server_default="candidate")
+    merged_into: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("pet.id"))
+    created_at: Mapped[datetime] = _created()
+
+
+class IdentityEvent(Base):
+    """Append-only: who said which animal is which pet. A trigger refuses UPDATE and DELETE."""
+
+    __tablename__ = "identity_event"
+    __table_args__ = (
+        _in("action", c.IdentityAction),
+        _in("origin", c.IdentityOrigin),
+        Index("ix_identity_event_detection", "detection_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pet_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pet.id"))
+    detection_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("detection.id", ondelete="SET NULL")
+    )
+    other_pet_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("pet.id"))
+    action: Mapped[str] = mapped_column(String(16))
+    origin: Mapped[str] = mapped_column(String(8))
+    value: Mapped[str | None] = mapped_column(String(64))
+    distance: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = _created()

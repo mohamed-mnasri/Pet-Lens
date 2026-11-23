@@ -35,6 +35,24 @@ models:
     columns:
       - name: run_id
         data_tests: [unique, not_null]
+  - name: stg_detections
+    columns:
+      - name: detection_id
+        data_tests: [unique, not_null]
+  - name: stg_pets
+    columns:
+      - name: pet_id
+        data_tests: [unique, not_null]
+  - name: stg_identity_events
+    columns:
+      - name: identity_event_id
+        data_tests: [unique, not_null]
+      - name: pet_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_pets')
+                field: pet_id
   - name: stg_vlm_tags
     columns:
       - name: vlm_tag_id

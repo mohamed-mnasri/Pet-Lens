@@ -221,3 +221,22 @@ def accuracy_rows(accuracy: list[dict[str, Any]]) -> list[dict[str, str]]:
             }
         )
     return out
+
+
+# --- Pets (Step 15) -------------------------------------------------------------------
+
+
+def pet_title(pet: dict[str, Any]) -> str:
+    icon = "🐱" if pet["species"] == "cat" else "🐶"
+    return f"{icon} {pet['name'] or 'New ' + pet['species'] + ' (not named yet)'}"
+
+
+def pet_caption(pet: dict[str, Any]) -> str:
+    parts = [f"{pet['photos']} photo{'s' if pet['photos'] != 1 else ''}"]
+    if pet.get("first_seen"):
+        first, last = str(pet["first_seen"])[:10], str(pet["last_seen"])[:10]
+        parts.append(f"seen {first}" if first == last else f"seen {first} to {last}")
+    if pet.get("consensus_breed"):
+        breed = pet["consensus_breed"].replace("_", " ").title()
+        parts.append(f"usually called {breed} ({pet['consistency']:.0%} of photos)")
+    return " · ".join(parts)

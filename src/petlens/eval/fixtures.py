@@ -110,6 +110,27 @@ def main() -> None:
                     label="ragdoll" if outcome == "accept" else None,
                 )
             )
+        pet = m.Pet(species="cat", name="Fixture", status="named")
+        s.add(pet)
+        s.flush()
+        frame = m.Frame(
+            upload_id=up.id,
+            frame_idx=0,
+            image_id="f" * 64,
+            path="x",
+            width=1,
+            height=1,
+            size_bytes=1,
+        )
+        s.add(frame)
+        s.flush()
+        det = m.Detection(
+            frame_id=frame.id, species="cat", score=0.9, x0=0, y0=0, x1=1, y1=1, pet_id=pet.id
+        )
+        s.add(det)
+        s.flush()
+        s.add(m.IdentityEvent(pet_id=pet.id, detection_id=det.id, action="new_pet", origin="model"))
+        s.add(m.IdentityEvent(pet_id=pet.id, action="name", origin="me", value="Fixture"))
         for i, status in enumerate(["ok", "ok", "parse_failed"]):
             s.add(
                 m.VlmTag(

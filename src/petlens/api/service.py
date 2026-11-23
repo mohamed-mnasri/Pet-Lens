@@ -31,6 +31,7 @@ from petlens.data.imaging import (
 from petlens.db import models as m
 from petlens.db.evidence import evidence_for
 from petlens.models.policy import Decision
+from petlens.pets.match import assign_upload
 from petlens.vision.pipeline import Analyzer, ImageResult, analyse_clip, analyse_image
 from petlens.vision.video import Frame, sample_frames
 
@@ -188,6 +189,7 @@ def process_photo(
         raise ingest.RejectedUploadError(str(exc), 422) from exc
     res = analyse_image(analyzer, img)
     _store_frame(session, settings, upload, 0, 0.0, res, analyzer.version, True)
+    assign_upload(session, upload.id)  # which of my pets is it (Step 15)
     upload.status = "done"
     return upload.id
 
@@ -253,6 +255,8 @@ def process_video(
         )
     if clip.ambiguous:
         upload.note = f"grouping is ambiguous, per-frame results instead: {clip.reason}"
+    session.flush()
+    assign_upload(session, upload.id)
     upload.status = "done"
     return upload.id
 

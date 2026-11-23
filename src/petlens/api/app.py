@@ -32,11 +32,29 @@ from petlens.db import models as m
 from petlens.db.session import get_engine
 from petlens.jobs import queue
 from petlens.jobs.handlers import batch_files
+from petlens.pets import manage, profiles
 from petlens.review import answers
 from petlens.vision.pipeline import Analyzer
 
 log = logging.getLogger(__name__)
 HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+class PetName(BaseModel):
+    name: str
+
+
+class PetMerge(BaseModel):
+    source: uuid.UUID
+    target: uuid.UUID
+
+
+class PetSplit(BaseModel):
+    detection_ids: list[uuid.UUID]
+
+
+class DetectionMove(BaseModel):
+    pet_id: uuid.UUID
 
 
 class ReviewBatch(BaseModel):
@@ -225,6 +243,57 @@ def create_app(
     @app.get("/review/stats", response_model=c.ReviewStats)
     def review_stats(session: DB) -> c.ReviewStats:
         return answers.stats(session)
+
+    # --- pets (Step 15) -------------------------------------------------------------
+
+    def _pet_change(session: Session, change: Callable[[], object]) -> None:
+        try:
+            change()
+        except KeyError as exc:
+            raise HTTPException(404, "No such pet or photo") from exc
+        except manage.PetError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        session.commit()
+
+    @app.get("/pets")
+    def list_pets(session: DB) -> list[dict[str, object]]:
+        return profiles.list_pets(session)
+
+    @app.get("/pets/{pet_id}")
+    def get_pet(pet_id: uuid.UUID, session: DB) -> dict[str, object]:
+        pet = profiles.pet_detail(session, pet_id)
+        if pet is None:
+            raise HTTPException(404, "No such pet")
+        return pet
+
+    @app.post("/pets/{pet_id}/name")
+    def name_pet(pet_id: uuid.UUID, body: PetName, session: DB) -> dict[str, str]:
+        _pet_change(session, lambda: manage.name(session, pet_id, body.name))
+        return {"status": "ok"}
+
+    @app.post("/pets/merge")
+    def merge_pets(body: PetMerge, session: DB) -> dict[str, str]:
+        _pet_change(session, lambda: manage.merge(session, body.source, body.target))
+        return {"status": "ok"}
+
+    @app.post("/pets/{pet_id}/split")
+    def split_pet(pet_id: uuid.UUID, body: PetSplit, session: DB) -> dict[str, str]:
+        made: list[str] = []
+        _pet_change(
+            session,
+            lambda: made.append(str(manage.split(session, pet_id, body.detection_ids).id)),
+        )
+        return {"status": "ok", "pet_id": made[0]}
+
+    @app.post("/detections/{detection_id}/move")
+    def move_detection(detection_id: uuid.UUID, body: DetectionMove, session: DB) -> dict[str, str]:
+        _pet_change(session, lambda: manage.move(session, detection_id, body.pet_id))
+        return {"status": "ok"}
+
+    @app.post("/detections/{detection_id}/confirm")
+    def confirm_detection(detection_id: uuid.UUID, session: DB) -> dict[str, str]:
+        _pet_change(session, lambda: manage.confirm(session, detection_id))
+        return {"status": "ok"}
 
     @app.get("/model-health")
     def model_health(session: DB) -> dict[str, object]:

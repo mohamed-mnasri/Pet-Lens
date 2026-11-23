@@ -150,6 +150,21 @@ models:
       - {name: share_blurry, data_type: double precision}
       - {name: share_kitten, data_type: double precision}
 
+  - name: mart_pets
+    description: My pets (not merged ones), their photos, first and last seen, and changes.
+    config:
+      contract: {enforced: true}
+    columns:
+      - {name: pet_id, data_type: uuid, constraints: [{type: not_null}], data_tests: [unique]}
+      - {name: pet_name, data_type: text}
+      - {name: species, data_type: text}
+      - {name: status, data_type: text}
+      - {name: photos, data_type: bigint}
+      - {name: first_seen, data_type: timestamp with time zone}
+      - {name: last_seen, data_type: timestamp with time zone}
+      - {name: model_events, data_type: bigint}
+      - {name: my_events, data_type: bigint}
+
 unit_tests:
   - name: confused_pairs_count_only_wrong_known_breeds
     model: mart_confused_pairs

@@ -36,6 +36,8 @@ PAIRS = [
     (m.TrainImage, c.TrainImage),
     (m.ReviewCard, c.ReviewCard),
     (m.VlmTag, c.VlmTag),
+    (m.Pet, c.Pet),
+    (m.IdentityEvent, c.IdentityEvent),
 ]
 NOT_IN_CONTRACT = {
     ("detection", "embedding"),

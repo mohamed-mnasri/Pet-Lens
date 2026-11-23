@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt golden register gate promote registry finetune ablation regression-update vlm-pull vlm-screen vlm-export vlm-report vlm-breeds install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui review-load review-export review-stats data data-oxford data-commons data-build data-quality own-photos import-folders data-openverse compare eval dbt golden register gate promote registry finetune ablation regression-update vlm-pull vlm-screen vlm-export vlm-report vlm-breeds pets-match pets-eval install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -164,6 +164,14 @@ vlm-report:
 
 vlm-breeds:
 	uv run python -m petlens.vlm breeds $(if $(LIMIT),--limit $(LIMIT),)
+
+# Step 15: pet profiles. New uploads are matched automatically; pets-match catches up on
+# older ones, pets-eval writes re-ID precision and recall on my labelled photos.
+pets-match:
+	uv run python -m petlens.pets match
+
+pets-eval:
+	uv run python -m petlens.pets eval
 
 # Look-alike breeds (Ragdoll / Birman, ...) in the last two training runs: before and after.
 compare:
