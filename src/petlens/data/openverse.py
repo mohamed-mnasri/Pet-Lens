@@ -28,7 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from petlens.data.catalog import BreedCatalog
+from petlens.data.catalog import BreedCatalog, Species
 from petlens.data.own import add_photo, known_refs
 from petlens.vision.detect import Detector
 
@@ -154,7 +154,10 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     settings = get_settings()
     breeds = load_breeds()
-    todo = args.breed or [b for b in breeds.training_classes(args.species) if b != "domestic_cat"]
+    species: list[Species] = ["cat", "dog"] if args.species == "all" else [args.species]
+    todo = args.breed or [
+        b for sp in species for b in breeds.training_classes(sp) if b != "domestic_cat"
+    ]
     detect = load_rfdetr(DetectorConfig(size=settings.detector_size))
     try:
         for breed in todo:
