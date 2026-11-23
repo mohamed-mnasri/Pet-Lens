@@ -1,4 +1,4 @@
-.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status data data-oxford data-commons data-build install-ml embed screen train analyse
+.PHONY: install lint format types test test-db check db-up db-down db-shell db-migrate db-downgrade db-index api storage-report worker review-batch jobs-status ui data data-oxford data-commons data-build install-ml embed screen train analyse
 
 install:
 	uv sync
@@ -54,6 +54,10 @@ review-batch:
 
 jobs-status:
 	uv run python -m petlens.jobs status
+
+# Upload page on http://127.0.0.1:8501 (Step 8). Needs make api running.
+ui:
+	uv run streamlit run src/petlens/ui/app.py
 
 # Dataset pipeline (Step 2). Safe to rerun: only new work is done.
 data: data-oxford data-commons data-build

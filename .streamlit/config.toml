@@ -1,0 +1,14 @@
+# Streamlit settings for the PetLens pages (make ui).
+[server]
+address = "127.0.0.1"   # local only
+headless = true
+maxUploadSize = 25      # MB: the clip limit; the browser refuses anything bigger
+
+[client]
+toolbarMode = "minimal"   # no Deploy button
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"

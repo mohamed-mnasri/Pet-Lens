@@ -2,7 +2,7 @@
 
 Working roadmap for PetLens. I update this file as steps land. The design itself lives in [SPEC.md](SPEC.md) and the data choices in [DATASET.md](DATASET.md); this file is about order of work, scope per step and what "done" means.
 
-**Current step:** 8. Upload page with evidence panel
+**Current step:** 9. Swipe review app
 **Last updated:** 2026-11-22
 
 ## Principles I'm holding myself to
@@ -24,7 +24,7 @@ Working roadmap for PetLens. I update this file as steps land. The design itself
 | 5 | Detection, person blurring and clip grouping by appearance | 1: Core | Done (photo 0.1 s, 6-frame clip 0.7 s on an RTX 2060) |
 | 6 | Database schema, contracts, API, input limits and hardening | 1: Core | Done (API and limit tests run in CI against Postgres) |
 | 7 | Job queue and worker | 1: Core | Done (UI progress view comes with Step 8) |
-| 8 | Upload page with evidence panel (Phase 1 gate) | 1: Core | Not started |
+| 8 | Upload page with evidence panel (Phase 1 gate) | 1: Core | Done (tag v0.2.0 after merging to main) |
 | 9 | Swipe review app, blind audit and reviewer checks | 2: Data engineering | Not started |
 | 10 | Evaluation module and dbt marts | 2: Data engineering | Not started |
 | 11 | Model registry, golden set and promotion gate | 2: Data engineering | Not started |
@@ -255,6 +255,12 @@ Implementation notes:
 - Result cards show the top 3 with calibrated probabilities, the decision badge, and the five most similar training images for the suggested breed (from pgvector).
 
 **Phase 1 gate:** a photo or clip in gives a calibrated decision and evidence out, every event is in Postgres, an end-to-end smoke test with tiny fixture models runs in CI, and CI is green. Tag `v0.2.0`.
+
+Implementation notes:
+
+- 8a (backend): `train_image` holds the training pool's embeddings (`make db-index` copies them from the latest run; rerun it after `make train`). Each run returns, per prediction, the five nearest training photos of the suggested breed from pgvector (cosine distance); a clip group uses the mean embedding of its detections, which now record their group. `/images/{train,frames,crops}/{hash}` serve only content-hash names from known folders, and `GET /jobs` and `GET /limits` feed the page.
+- 8b (page): `make ui` opens the Streamlit page on 127.0.0.1:8501. It shows the limits up front, checks type, size and megapixels before sending (and Streamlit's own upload cap is 25 MB), then shows each upload with boxes drawn on the stored, face-blurred frames, a decision badge, the top 3 as bars, the kNN distance and the five evidence photos with similarity, credit and licence. A second tab queues review batches and shows job progress. The page only talks to the API.
+- The end-to-end smoke test sends a photo through the page's own client to the API with tiny fixture models (a colour detector, colour embeddings and a logistic head) and checks the decision, the evidence and the drawn frame. A Streamlit `AppTest` checks the page renders.
 
 ### Phase 2: Data engineering and feedback loop
 
