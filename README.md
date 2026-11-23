@@ -1,8 +1,8 @@
 # PetLens
 
-**A fully local pet breed recogniser that knows when it doesn't know, and gets better from a fast human review loop.**
+**Local ML system with VLM data screening and human-in-the-loop evaluation**
 
-PetLens takes a photo, a 10-second clip or a live webcam feed, finds each cat and dog, and says which breed it *looks most like*, with a calibrated confidence. Most cats have no breed, so "domestic cat, no clear breed" is a trained answer, and "not sure" is a valid one. Everything runs on one Windows laptop with an RTX 2060: no cloud services, no paid APIs, €0 to build and run.
+Python · PyTorch · PostgreSQL / pgvector · dbt · Ollama · FastAPI
 
 ```bash
 make up && make demo      # Postgres in Docker, a seeded demo database, the page opens
@@ -10,15 +10,41 @@ make up && make demo      # Postgres in Docker, a seeded demo database, the page
 
 ---
 
-## What makes it more than a classifier
+PetLens is an end-to-end machine learning system that runs entirely on one laptop (Windows, RTX 2060 with 6 GB). It has five parts:
 
-- **It abstains on purpose.** A kNN distance to the training set flags photos unlike anything seen, and a decision policy tuned on held-out data chooses between *accept*, *no clear breed* and *review*. The number it is tuned against is the **false breed claim rate**: how often an ordinary cat gets called a pedigree.
-- **Evidence, not just a label.** Every answer shows the training photos it looks most like (pgvector), and look-alike pairs (Ragdoll and Birman) are shown side by side.
-- **A swipe review loop.** I swipe answers right or wrong. Every label is an append-only event that keeps its origin, and only reviewed labels feed the next dataset version.
-- **Promotion is earned.** A new model replaces the champion only if a paired bootstrap on a frozen golden set and on sources it never trained on says it is better, no breed's recall falls by more than 10 points, and false breed claims don't rise.
-- **A local VLM with a narrow, measured job.** `qwen3-vl:4b` (Ollama) tags dataset photos (real photo or drawing, whole animal, kitten, blurry, several animals). Its tags only keep weak web photos out of training, and they are scored against my reviews with Cohen's kappa.
-- **Pet profiles.** Uploads are matched to pets seen before by appearance; I can name, merge and split them, and every change is an identity event.
-- **Data engineering you can audit.** dbt Core marts with enforced contracts, snapshots and unit tests feed the Model health tab; the app never computes a dashboard number itself.
+- a versioned, licence-tracked image data pipeline
+- a calibrated classifier that abstains when it isn't sure
+- a human-in-the-loop review loop that feeds retraining
+- model promotion gated by statistical tests
+- a local vision-language model used as a measured data-quality screener
+
+The domain is pet breed recognition. The engineering patterns are the ones production teams use for document classification, defect inspection and content moderation: selective prediction, label lineage, and champion vs challenger evaluation.
+
+## What it demonstrates
+
+| Area | What's built |
+| --- | --- |
+| **Data engineering** | Reproducible dataset builds from Oxford-IIIT Pet, Wikimedia Commons and Openverse. Every image carries its licence and attribution. Near-duplicates are clustered, splits are grouped so nothing leaks between train and test, and manifests are versioned. An operational PostgreSQL schema with Alembic migrations, append-only label and identity events, a Postgres-backed job queue, and dbt marts with incremental models, snapshots, contracts and unit tests. |
+| **ML engineering** | DINOv2 embeddings with linear and MLP heads, then partial fine-tuning in fp16 on a 6 GB GPU. Temperature calibration, open-set rejection with kNN in pgvector, and decision thresholds tuned on held-out real-world data. |
+| **Evaluation** | Metrics reported separately for in-domain, unseen-source, domestic-cat and unknown-breed test sets and a frozen golden set, with per-class intervals, a false breed claim rate as the headline safety metric, and a paired bootstrap before any model is promoted. |
+| **Human-in-the-loop** | A swipe review app with blind audits and reviewer-accuracy checks. Only reviewed labels ever reach training, and every label keeps its origin. |
+| **Local AI** | A vision-language model (`qwen3-vl:4b` on Ollama) screens images with schema-validated output. Its tags are scored against human review (Cohen's kappa), not trusted, and they never set a label. |
+| **Backend and real time** | FastAPI with Pydantic contracts, input hardening, upload limits with compression, a dead-letter table, a background worker, and a live webcam page with per-animal smoothing and measured FPS. |
+
+Everything runs on one machine: **no cloud services, no paid APIs, €0 to build and run.**
+
+## What it does
+
+PetLens takes a photo, a 10-second clip or a live webcam feed, finds each cat and dog, and suggests the breed it *looks most like*, with a calibrated confidence. It never claims to *identify* a breed. Most cats have no breed, so "domestic cat, no clear breed" is a trained answer, and "not sure" is a valid one.
+
+Around each prediction:
+
+- **It abstains on purpose.** A kNN distance to the training set flags photos unlike anything seen, and a decision policy chooses between *accept*, *no clear breed* and *review*, tuned against how often an ordinary cat gets called a pedigree.
+- **Evidence, not just a label.** Every answer shows the training photos it looks most like, and look-alike pairs (Ragdoll and Birman) are shown side by side.
+- **Review feeds the data.** I swipe answers right or wrong; reviewed labels go into the next dataset version with their origin recorded.
+- **Promotion is earned.** A new model replaces the champion only if it beats it on a frozen golden set and on sources it never trained on, no breed's recall falls by more than 10 points, and false breed claims don't rise.
+- **Pet profiles.** My own pets are recognised across uploads by appearance; I can name, merge and split them, and every change is logged.
+- **Numbers you can audit.** The Model health tab reads only dbt marts; the app never computes a dashboard number itself.
 
 ## Results
 

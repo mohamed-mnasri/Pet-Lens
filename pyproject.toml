@@ -1,7 +1,7 @@
 [project]
 name = "petlens"
 version = "1.0.0"
-description = "Local pet breed recognition that knows when it does not know, with a human review loop."
+description = "Local ML system with VLM data screening and human-in-the-loop evaluation."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
