@@ -4,6 +4,11 @@ COCO has no face class, so the face is approximated as the head region: the top 
 each person box, as tall as the box is wide times ``head_ratio`` (about a seventh of a
 standing person, under a third of a close-up), and the full box width. This keeps a pet held
 in someone's arms visible while the face is hidden.
+
+The head region is coarse, so in close-ups it often reaches over a dog's head or back.
+Pixels inside a detected cat or dog box are therefore put back sharp after blurring: the
+animal is what the photo is for. The trade-off: the part of a face that sits inside an
+animal's box (cheek to cheek with a dog) stays visible.
 """
 
 from __future__ import annotations
@@ -27,8 +32,11 @@ def head_box(
 def blur_people(
     img: Image.Image, detections: Iterable[Detection], pad: float = 0.05
 ) -> Image.Image:
-    """Return a copy with the head region of every person (plus a margin) heavily blurred."""
-    out = img.convert("RGB").copy()
+    """Return a copy with the head region of every person (plus a margin) heavily blurred,
+    leaving any cat or dog box sharp."""
+    detections = list(detections)
+    original = img.convert("RGB")
+    out = original.copy()
     w, h = out.size
     for d in detections:
         if d.label != "person":
@@ -51,4 +59,11 @@ def blur_people(
             ImageFilter.GaussianBlur(radius)
         )
         out.paste(blurred, box[:2])
+    for d in detections:
+        if d.label not in ("cat", "dog"):
+            continue
+        x0, y0, x1, y1 = d.box
+        keep = (max(0, int(x0)), max(0, int(y0)), min(w, int(x1 + 0.5)), min(h, int(y1 + 0.5)))
+        if keep[2] > keep[0] and keep[3] > keep[1]:
+            out.paste(original.crop(keep), keep[:2])
     return out

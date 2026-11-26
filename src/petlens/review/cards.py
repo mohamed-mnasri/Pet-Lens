@@ -27,6 +27,7 @@ AUDIT_RATE = 0.05
 CHECK_RATE = 0.05
 DOMESTIC = "domestic_cat"
 NOT_PET = "not_pet"
+MIXED_DOG = "mixed_dog"
 
 # Lower runs first. Questions I can answer reliably (is it a domestic cat?) come before
 # fine breed calls.
