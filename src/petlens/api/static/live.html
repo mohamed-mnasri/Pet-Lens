@@ -20,7 +20,34 @@
   .sub { color: var(--muted); margin: 4px 0 20px; }
   .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden;
            aspect-ratio: 4 / 3; width: 100%; }
-  video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  /* Boxes are HTML laid over the picture area of the video, so text stays sharp. */
+  #overlay { position: absolute; pointer-events: none; container-type: inline-size;
+             color: #fff; font-size: clamp(11px, 2.1cqw, 15px); line-height: 1.25; }
+  .box { position: absolute; border: 2px solid rgba(255, 255, 255, .9); border-radius: 16px;
+         box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); transition: left .2s, top .2s, width .2s, height .2s, border-color .35s; }
+  .box.unknown { border-color: rgba(255, 255, 255, .55); border-style: dashed; }
+  .box.locked { border-color: #3DDC84; }
+  .box .info { position: absolute; left: 3%; bottom: 4%; width: min(52%, 340px); min-width: 170px;
+               background: rgba(18, 20, 19, .62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+               border-radius: 12px; padding: .8em .95em .85em; display: grid; gap: .35em; }
+  .box .eyebrow { display: flex; align-items: center; gap: .4em; font-size: .72em; font-weight: 600;
+                  letter-spacing: .09em; text-transform: uppercase; color: rgba(255, 255, 255, .6); }
+  .box.locked .eyebrow { color: #3DDC84; }
+  .box .lock { width: 1.1em; height: 1.1em; flex: none; }
+  .box:not(.locked) .lock { display: none; }
+  .box .row { display: flex; align-items: baseline; justify-content: space-between; gap: .6em; }
+  .box .main { font-weight: 600; font-size: 1.12em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .box .main small { display: block; font-weight: 400; font-size: .72em; color: rgba(255, 255, 255, .6); }
+  .box .pct { font-size: 1.15em; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .box .meter { position: relative; height: .32em; border-radius: 99px; background: rgba(255, 255, 255, .18); overflow: hidden; }
+  .box .meter i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: #C9D1CC;
+                transition: width .45s ease, background-color .35s; }
+  .box.candidate .meter i { background: #FFC857; }
+  .box.locked .meter i { background: #3DDC84; }
+  .box .meter b { position: absolute; top: -2px; bottom: -2px; left: 75%; width: 1.5px; background: rgba(255, 255, 255, .7); }
+  .box .alt { font-size: .82em; color: rgba(255, 255, 255, .6); }
+  @media (prefers-reduced-motion: reduce) { .box, .box .meter i { transition: none; } }
   .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0; }
   button { font: inherit; padding: 8px 18px; border-radius: 8px; border: 1px solid var(--line);
            background: var(--card); color: var(--ink); cursor: pointer; }
@@ -43,7 +70,7 @@
     is in view.</p>
   <div class="stage">
     <video id="video" autoplay playsinline muted></video>
-    <canvas id="overlay"></canvas>
+    <div id="overlay"></div>
   </div>
   <div class="bar">
     <button id="start" class="primary">Start camera</button>
@@ -60,7 +87,6 @@
 <script>
 const video = document.getElementById("video");
 const overlay = document.getElementById("overlay");
-const ctx = overlay.getContext("2d");
 const grab = document.createElement("canvas");
 const session = (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2);
 let running = false;
@@ -78,24 +104,76 @@ function label(a) {
   return `Not sure (${a.species})`;
 }
 
-function draw(animals) {
-  const w = video.videoWidth, h = video.videoHeight;
-  overlay.width = w; overlay.height = h;
-  ctx.clearRect(0, 0, w, h);
-  ctx.lineWidth = Math.max(2, w / 240);
-  ctx.font = `${Math.max(14, w / 40)}px system-ui, sans-serif`;
-  for (const a of animals) {
-    const [x0, y0, x1, y1] = a.box;
-    const colour = a.outcome === "accept" ? "#2F7D4F" : a.outcome === "review" ? "#A86B12" : "#C8562A";
-    ctx.strokeStyle = colour;
-    ctx.strokeRect(x0 * w, y0 * h, (x1 - x0) * w, (y1 - y0) * h);
-    const text = label(a);
-    const tw = ctx.measureText(text).width + 12;
-    ctx.fillStyle = colour;
-    ctx.fillRect(x0 * w, Math.max(0, y0 * h - w / 30), tw, w / 30);
-    ctx.fillStyle = "#fff";
-    ctx.fillText(text, x0 * w + 6, Math.max(w / 40, y0 * h - w / 120));
+const LOCK = '<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5" fill="currentColor" stroke="none"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>';
+const boxes = new Map();  // track id -> box element, reused so bars animate between frames
+
+function placeOverlay() {
+  // The video is letterboxed (object-fit: contain): cover only the picture area.
+  const sw = video.clientWidth, sh = video.clientHeight;
+  const vw = video.videoWidth || sw, vh = video.videoHeight || sh;
+  const k = Math.min(sw / vw, sh / vh);
+  Object.assign(overlay.style, {
+    width: `${vw * k}px`, height: `${vh * k}px`,
+    left: `${(sw - vw * k) / 2}px`, top: `${(sh - vh * k) / 2}px`,
+  });
+}
+
+function boxFor(track) {
+  let el = boxes.get(track);
+  if (!el) {
+    el = document.createElement("div");
+    el.innerHTML = `<div class="info"><div class="eyebrow">${LOCK}<span class="sp"></span></div>
+      <div class="row"><div class="main"><span class="name"></span><small></small></div><span class="pct"></span></div>
+      <div class="meter"><i></i><b></b></div><div class="alt"></div></div>`;
+    overlay.append(el);
+    boxes.set(track, el);
   }
+  return el;
+}
+
+function drawBox(a) {
+  const el = boxFor(a.track);
+  const state = a.outcome !== "accept" ? "unknown" : a.locked ? "locked" : "candidate";
+  el.className = `box ${state}`;
+  const [x0, y0, x1, y1] = a.box;
+  Object.assign(el.style, { left: `${x0 * 100}%`, top: `${y0 * 100}%`,
+    width: `${(x1 - x0) * 100}%`, height: `${(y1 - y0) * 100}%` });
+  const species = a.species === "cat" ? "Cat" : a.species === "dog" ? "Dog" : a.species;
+  const best = a.top3[0];
+  const breed = (t) => t && t.label !== "Domestic cat";
+  let name, sub, pct = "", fill, alt;
+  if (state === "unknown") {
+    name = a.outcome === "review" ? "Not sure yet" : "No clear breed";
+    sub = breed(best) ? `closest: ${best.label}` : "";
+    fill = best ? best.p : 0;
+    alt = "Keep the animal in view for a clearer answer";
+  } else {
+    name = a.label;
+    sub = a.locked ? "looks most like" : "looks most like, still checking";
+    pct = `${(a.confidence * 100).toFixed(0)}%`;
+    fill = a.confidence;
+    const next = a.also ? a.top3.find((t) => t.label === a.also) : a.top3.find((t) => t.label !== a.label && breed(t));
+    alt = next ? `${a.also ? "Close to" : "Next"}: ${next.label} ${(next.p * 100).toFixed(0)}%` : "";
+  }
+  el.querySelector(".sp").textContent = `${species} · ${a.frames} frame${a.frames === 1 ? "" : "s"}`;
+  el.querySelector(".name").textContent = name;
+  el.querySelector(".main small").textContent = sub;
+  el.querySelector(".pct").textContent = pct;
+  el.querySelector(".meter i").style.width = `${Math.round(fill * 100)}%`;
+  el.querySelector(".alt").textContent = alt;
+  el.querySelector(".alt").hidden = !alt;
+}
+
+function clearBoxes() {
+  boxes.forEach((el) => el.remove());
+  boxes.clear();
+}
+
+function draw(animals) {
+  placeOverlay();
+  const seen = new Set(animals.map((a) => a.track));
+  for (const [track, el] of boxes) if (!seen.has(track)) { el.remove(); boxes.delete(track); }
+  animals.forEach(drawBox);
   const list = document.getElementById("answers");
   list.replaceChildren(...animals.map((a) => {
     const div = document.createElement("div");
@@ -104,7 +182,7 @@ function draw(animals) {
     div.innerHTML = `<b></b><br><small></small>`;
     div.querySelector("b").textContent = label(a);
     div.querySelector("small").textContent =
-      `Animal ${a.track + 1}${a.locked ? " · locked until it leaves the picture" : ""} · averaged over ${a.frames} frame${a.frames === 1 ? "" : "s"} · top 3: ${top}`;
+      `Animal ${a.track + 1} · averaged over ${a.frames} frame${a.frames === 1 ? "" : "s"} · top 3: ${top}`;
     return div;
   }));
 }
@@ -147,6 +225,8 @@ async function loop() {
   }
 }
 
+window.addEventListener("resize", placeOverlay);
+
 document.getElementById("start").onclick = async () => {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
@@ -164,7 +244,7 @@ document.getElementById("start").onclick = async () => {
 document.getElementById("stop").onclick = () => {
   running = false;
   if (stream) stream.getTracks().forEach((t) => t.stop());
-  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  clearBoxes();
   document.getElementById("start").disabled = false;
   document.getElementById("stop").disabled = true;
 };
