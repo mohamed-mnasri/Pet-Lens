@@ -42,6 +42,40 @@ def test_one_odd_frame_does_not_flip_the_answer() -> None:
     assert s.fps() > 0
 
 
+def _far(emb: np.ndarray, probs: list[float]) -> AnimalResult:
+    """A webcam-like frame: far from the training photos (kNN 0.7 > the 0.5 limit)."""
+    p = np.array(probs)
+    dec = decide(p, CLASSES, 0.7, "cat", CFG, [])
+    return AnimalResult("cat", (10, 10, 50, 50), 0.9, dec, p, 0.7, emb.astype(np.float32))
+
+
+def test_a_breed_at_75_percent_locks_until_the_cat_leaves() -> None:
+    rng = np.random.default_rng(1)
+    milo = rng.normal(size=16)
+    s = live.LiveSession(CFG, {"cat": CLASSES})
+    first = s.update([_far(milo, [0.1, 0.1, 0.8])])
+    assert first[0].decision.outcome == "no_clear_breed" and not first[0].locked  # one frame
+    locked = s.update([_far(milo, [0.1, 0.1, 0.8])])
+    assert locked[0].locked and locked[0].decision.label == "ragdoll"
+    assert locked[0].decision.outcome == "accept"  # despite the kNN distance
+    # Turned away: the answer would drop, and its look changed a lot, but it stays.
+    for _ in range(6):
+        out = s.update([_far(rng.normal(size=16), [0.4, 0.4, 0.2])])
+    assert out[0].track == locked[0].track and out[0].decision.label == "ragdoll"
+    for _ in range(live.LiveConfig().max_missing + 1):
+        s.update([])
+    back = s.update([_far(milo, [0.4, 0.4, 0.2])])
+    assert not back[0].locked  # it left the picture, so the lock is gone
+
+
+def test_a_domestic_cat_answer_never_locks() -> None:
+    s = live.LiveSession(CFG, {"cat": CLASSES})
+    milo = np.ones(16)
+    for _ in range(3):
+        out = s.update([_far(milo, [0.05, 0.9, 0.05])])
+    assert not out[0].locked
+
+
 def test_storage_clock_and_live_marker(tmp_path: Path) -> None:
     s = live.LiveSession(CFG, {"cat": CLASSES}, cfg=live.LiveConfig(store_every=10))
     assert s.should_store(True) and not s.should_store(True)

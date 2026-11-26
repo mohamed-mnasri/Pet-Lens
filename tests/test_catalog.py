@@ -21,6 +21,7 @@ def test_breeds_yaml_is_valid_and_complete() -> None:
         "korat",
         "selkirk_rex",
         "manx",
+        "mixed_dog",  # my "mixed / no clear breed" dogs from the Review tab
     }
     # Bombay is the one Oxford breed I chose not to cover; it tests unknown breeds.
     assert {u for u in unknown if cat.get(u).oxford_label} == {"bombay"}
@@ -29,6 +30,8 @@ def test_breeds_yaml_is_valid_and_complete() -> None:
 def test_commons_categories_cover_cats_and_the_non_oxford_dogs() -> None:
     cat = load_breeds()
     for b in cat.breeds:
+        if b.id == "mixed_dog":  # only from my reviews
+            continue
         wanted = b.species == "cat" or b.oxford_label is None
         assert bool(b.commons_categories) == wanted, b.id
 

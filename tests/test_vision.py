@@ -170,6 +170,22 @@ def test_blur_ignores_animals() -> None:
     assert np.array_equal(np.asarray(out), np.asarray(img))
 
 
+def test_blur_leaves_a_dog_under_the_head_region_sharp() -> None:
+    img = Image.new("RGB", (200, 200), (128, 128, 128))
+    for i in range(0, 200, 2):
+        img.paste((0, 0, 0) if i % 4 else (255, 255, 255), (0, i, 200, i + 2))
+    # A close-up: the head region is the top 60 px of the full width, and a dog's head
+    # reaches up into it on the right.
+    person = Detection("person", 0.9, (0, 0, 200, 200))
+    dog = Detection("dog", 0.9, (120, 30, 200, 200))
+    out = blur_people(img, [person, dog], pad=0)
+    face = (10, 5, 100, 55)
+    assert np.asarray(out.crop(face), dtype=float).std() < (
+        np.asarray(img.crop(face), dtype=float).std() / 3
+    )
+    assert np.array_equal(np.asarray(out.crop(dog.box)), np.asarray(img.crop(dog.box)))
+
+
 def test_sample_frames_one_per_second(tmp_path: Path) -> None:
     av = pytest.importorskip("av")
     path = tmp_path / "clip.mp4"

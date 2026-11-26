@@ -122,6 +122,19 @@ def test_reviews_change_labels_and_training_pool() -> None:
     assert not in_training_pool(audit, frozenset())
 
 
+def test_dogs_can_be_marked_mixed() -> None:
+    dog = m.ReviewCard(species="dog", suggested="beagle", options=["beagle", "boxer"])
+    assert answers.picker(dog) == ["boxer", "mixed_dog", "not_pet"]
+    cat = m.ReviewCard(species="cat", suggested="bengal", options=["bengal"])
+    assert "mixed_dog" not in answers.picker(cat)
+    assert load_breeds().get("mixed_dog").role == "unknown"  # never trained on
+    fixed = apply_reviews(
+        [_row("d" * 64, "beagle", species="dog")],
+        {"d" * 64: {"action": "fix", "label": "mixed_dog"}},
+    )
+    assert fixed[0].breed == "mixed_dog" and fixed[0].label_origin == "me"
+
+
 # --- with the database --------------------------------------------------------------
 
 

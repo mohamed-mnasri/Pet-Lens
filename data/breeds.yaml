@@ -85,6 +85,10 @@ breeds:
   - {id: french_bulldog, name: French Bulldog, species: dog, role: train, commons_categories: [French Bulldogs]}
   - {id: poodle, name: Poodle, species: dog, role: train, commons_categories: [Poodles]}
 
+  # Dogs I mark "mixed / no clear breed" in the Review tab. Never trained on; they join
+  # the unknown-breed test, so the dog side gets a rejection rate like the cats.
+  - {id: mixed_dog, name: Mixed / no clear breed, species: dog, role: unknown}
+
 # Pairs the UI names together when their scores are close (DATASET.md).
 close_pairs:
   - [bengal, egyptian_mau]

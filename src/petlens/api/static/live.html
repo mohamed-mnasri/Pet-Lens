@@ -69,7 +69,8 @@ const times = [];
 
 function label(a) {
   if (a.outcome === "accept") {
-    return `${a.label}${a.also ? " or " + a.also : ""} ${(a.confidence * 100).toFixed(0)}%`;
+    const pct = `${(a.confidence * 100).toFixed(0)}%`;
+    return `${a.locked ? "🔒 " : ""}${a.label}${a.also ? " or " + a.also : ""} ${pct}`;
   }
   if (a.outcome === "no_clear_breed") {
     return a.species === "cat" ? "Domestic cat, no clear breed" : "Dog, no clear breed";
@@ -103,7 +104,7 @@ function draw(animals) {
     div.innerHTML = `<b></b><br><small></small>`;
     div.querySelector("b").textContent = label(a);
     div.querySelector("small").textContent =
-      `Animal ${a.track + 1} · averaged over ${a.frames} frame${a.frames === 1 ? "" : "s"} · top 3: ${top}`;
+      `Animal ${a.track + 1}${a.locked ? " · locked until it leaves the picture" : ""} · averaged over ${a.frames} frame${a.frames === 1 ? "" : "s"} · top 3: ${top}`;
     return div;
   }));
 }

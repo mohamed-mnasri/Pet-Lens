@@ -4,12 +4,12 @@ target_accuracy: 0.9
 max_false_breed_claim: 0.1
 species:
   cat:
-    min_confidence: 0.8
-    max_knn_distance: 0.3929707261298823
-    review_knn_distance: 0.6810852448141596
+    min_confidence: 0.95
+    max_knn_distance: 0.45861727485181913
+    review_knn_distance: 0.7152022075426812
   dog:
-    min_confidence: 0.3
-    max_knn_distance: 0.5183947316257465
-    review_knn_distance: 0.5183947316257465
+    min_confidence: 0.95
+    max_knn_distance: 0.5329821410786048
+    review_knn_distance: 0.6952658959436487
 tuned_on: rw_calibration (cats), calibration split where no real-world slice exists;
-  dataset 2026-11-22-9c732909
+  dataset 2026-11-26-81fc5f27

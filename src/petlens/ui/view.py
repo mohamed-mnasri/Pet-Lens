@@ -170,6 +170,8 @@ def option_label(label: str) -> str:
         return "Not a cat or dog"
     if label == "domestic_cat":
         return "Domestic / no clear breed"
+    if label == "mixed_dog":
+        return "Mixed / no clear breed"
     return nice(label)
 
 

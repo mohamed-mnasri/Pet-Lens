@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from petlens import contracts as c
 from petlens.data.catalog import BreedCatalog, load_breeds
 from petlens.db import models as m
-from petlens.review.cards import DOMESTIC, NOT_PET
+from petlens.review.cards import DOMESTIC, MIXED_DOG, NOT_PET
 
 REFERENCE_K = 4
 
@@ -70,10 +70,12 @@ def references(session: Session, species: str, breed: str | None) -> list[c.Evid
 
 def picker(card: m.ReviewCard) -> list[str]:
     """Answers offered after "wrong" (or on a blind card): the other top answers, then
-    domestic, then "not a cat or dog"."""
+    domestic (cats) or mixed (dogs), then "not a cat or dog"."""
     out = [o for o in card.options if o != card.suggested]
     if card.species == "cat" and DOMESTIC not in out and card.suggested != DOMESTIC:
         out.append(DOMESTIC)
+    if card.species == "dog" and MIXED_DOG not in out and card.suggested != MIXED_DOG:
+        out.append(MIXED_DOG)
     out.append(NOT_PET)
     return out
 

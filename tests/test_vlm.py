@@ -53,6 +53,21 @@ def test_answers_are_validated_with_one_retry() -> None:
     assert failed.tags is None and failed.attempts == 2  # then parse_failed
 
 
+class TimeoutVlm(FakeVlm):
+    def ask(self, prompt: str, image_jpeg: bytes, schema: dict[str, Any]) -> str:
+        self.calls.append({})
+        if len(self.calls) == 1:
+            raise httpx.ReadTimeout("timed out")
+        return self.answers[0]
+
+
+def test_a_timeout_counts_as_a_failed_answer() -> None:
+    retried = screen.screen_one(TimeoutVlm([GOOD]), b"x")
+    assert retried.tags is not None and retried.attempts == 2
+    stuck = screen.screen_one(TimeoutVlm(["<never parsed>"]), b"x")
+    assert stuck.tags is None and stuck.attempts == 2 and stuck.raw == "<never parsed>"
+
+
 def test_ollama_request_uses_the_schema_and_the_image() -> None:
     seen: list[dict[str, Any]] = []
 

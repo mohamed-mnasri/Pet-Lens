@@ -385,6 +385,7 @@ def create_app(
                     "also": name(a.decision.also),
                     "confidence": a.decision.confidence,
                     "frames": a.frames,
+                    "locked": a.locked,
                     "top3": [{"label": name(lb), "p": p} for lb, p in a.decision.top3],
                 }
                 for a in smoothed

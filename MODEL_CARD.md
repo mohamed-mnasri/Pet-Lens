@@ -12,9 +12,53 @@ Suggest which breed a cat or dog in a photo, short clip or webcam frame looks mo
 
 RF-DETR finds each animal; the crop goes through a DINOv2 backbone (frozen or with its last blocks fine-tuned); a per-species head gives breed probabilities, temperature-scaled on a calibration split. A kNN distance to the training embeddings flags photos unlike anything seen. A decision policy, tuned on held-out data, turns that into accept, no clear breed, or review.
 
-## This machine
+## The serving run
 
-No trained run was found when this card was generated, so it has no numbers. Run `make train` (and `make register promote`), then `make cards`.
+- Run: `20261123T142131Z-2026-11-23-53389f37`
+- Dataset version: `2026-11-23-53389f37` (see [DATASET_CARD.md](DATASET_CARD.md))
+- Backbone: `vit_small_patch14_dinov2.lvd142m`
+- Weights SHA-256: `5c82516b9367f7cb...`
+
+## Results
+
+| Species | Test set | Top-1 | False breed claims | Unknown breeds rejected |
+| --- | --- | ---: | ---: | ---: |
+| cat | Same sources as training | 90.3% | n/a | n/a |
+| cat | Sources never trained on | 48.1% | n/a | n/a |
+| cat | Ordinary cats (no breed) | 94.8% | 0.6% | n/a |
+| dog | Same sources as training | 95.8% | n/a | n/a |
+| dog | Sources never trained on | 29.7% | n/a | n/a |
+
+Decision thresholds (tuned on held-out data, stored with the run):
+
+```json
+{
+  "close_margin": 0.15,
+  "max_false_breed_claim": 0.1,
+  "species": {
+    "cat": {
+      "max_knn_distance": 0.3820687622340518,
+      "min_confidence": 0.95,
+      "review_knn_distance": 0.6952645187196904
+    },
+    "dog": {
+      "max_knn_distance": 0.530782403549794,
+      "min_confidence": 0.95,
+      "review_knn_distance": 0.5243587723927077
+    }
+  },
+  "target_accuracy": 0.9,
+  "tuned_on": "rw_calibration (cats), calibration split where no real-world slice exists"
+}
+```
+
+## Promotion gate
+
+This run became the champion after the gate passed: a paired bootstrap over the same photos (golden set and unseen sources), no breed's recall falling by more than 10 points, and no rise in false breed claims on ordinary cats.
+
+```json
+{}
+```
 
 ## Limitations
 

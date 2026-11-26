@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import httpx
 from pydantic import BaseModel, ValidationError
 
 from petlens.config import Settings
@@ -65,7 +66,10 @@ def ask(vlm: Vlm, image_jpeg: bytes, species: str, options: list[tuple[str, str]
         "required": ["breed"],
     }
     for _ in (1, 2):
-        raw = vlm.ask(prompt, image_jpeg, schema)
+        try:
+            raw = vlm.ask(prompt, image_jpeg, schema)
+        except httpx.TimeoutException:  # a photo that sends the model into a loop
+            continue
         try:
             pick = BreedAnswer.model_validate(json.loads(raw.strip())).breed
         except (ValueError, ValidationError):

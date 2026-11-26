@@ -148,11 +148,17 @@ def parse(raw: str) -> VlmTags | None:
 
 
 def screen_one(vlm: Vlm, image_jpeg: bytes) -> Answer:
-    """Ask once; if the answer isn't valid, ask once more; then give up."""
+    """Ask once; if the answer isn't valid (or the model times out), ask once more; then
+    give up. A timeout counts as a failed answer so one photo that sends the model into an
+    endless loop is recorded and skipped instead of blocking every later run."""
     started = time.monotonic()
     raw = ""
     for attempt in (1, 2):
-        raw = vlm.ask(PROMPT, image_jpeg, SCHEMA)
+        try:
+            raw = vlm.ask(PROMPT, image_jpeg, SCHEMA)
+        except httpx.TimeoutException:
+            raw = "<timeout>"
+            continue
         tags = parse(raw)
         if tags is not None:
             return Answer(tags, raw, attempt, time.monotonic() - started)
