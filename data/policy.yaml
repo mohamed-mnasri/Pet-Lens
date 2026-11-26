@@ -5,11 +5,11 @@ max_false_breed_claim: 0.1
 species:
   cat:
     min_confidence: 0.95
-    max_knn_distance: 0.3820687622340518
-    review_knn_distance: 0.6952645187196904
+    max_knn_distance: 0.45861727485181913
+    review_knn_distance: 0.7152022075426812
   dog:
     min_confidence: 0.95
-    max_knn_distance: 0.530782403549794
-    review_knn_distance: 0.5243587723927077
+    max_knn_distance: 0.5329821410786048
+    review_knn_distance: 0.6952658959436487
 tuned_on: rw_calibration (cats), calibration split where no real-world slice exists;
-  dataset 2026-11-23-53389f37
+  dataset 2026-11-26-81fc5f27
